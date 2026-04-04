@@ -6,8 +6,11 @@
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION            = "20"
-  NEXT_TELEMETRY_DISABLED = "1"
+  NODE_VERSION              = "20"
+  NEXT_TELEMETRY_DISABLED   = "1"
+  # These are not secrets — omit from Netlify secrets scanning
+  # ALLOWED_EMAIL_DOMAIN is a plain domain string; NEXT_PUBLIC_* is intentionally public
+  SECRETS_SCAN_OMIT_KEYS    = "ALLOWED_EMAIL_DOMAIN,NEXT_PUBLIC_CANCEL_ALLOWED_EMAILS"
 
 [[headers]]
   for = "/*"
