@@ -9,8 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        vbi: {
+          primary: "#00538E",
+          dark: "#012082",
+          accent: "#DF416D",
+          light: "#BFE8FA",
+        },
+      },
+      fontFamily: {
+        sans: ["Be Vietnam Pro", "Inter", "sans-serif"],
       },
     },
   },

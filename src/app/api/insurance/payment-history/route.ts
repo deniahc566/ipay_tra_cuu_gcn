@@ -1,0 +1,33 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getIronSession } from "iron-session";
+import { cookies } from "next/headers";
+import { sessionOptions, type SessionData } from "@/lib/session";
+import { getPaymentHistory } from "@/lib/motherduck";
+
+const TIMEOUT_MS = 20_000;
+
+export async function GET(req: NextRequest) {
+  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  if (!session.user) {
+    return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
+  }
+
+  const certNo = req.nextUrl.searchParams.get("certNo");
+  if (!certNo) {
+    return NextResponse.json({ success: false, error: "Thiếu số chứng nhận." }, { status: 400 });
+  }
+
+  try {
+    const rows = await Promise.race([
+      getPaymentHistory(certNo),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout sau ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
+      ),
+    ]);
+    return NextResponse.json({ success: true, data: rows });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Lỗi không xác định";
+    console.error("[payment-history] error:", message);
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
