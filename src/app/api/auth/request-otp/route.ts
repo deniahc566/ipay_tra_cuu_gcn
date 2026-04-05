@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendOtpEmail(email, otp);
-  } catch {
+  } catch (err) {
+    console.error("[request-otp] sendOtpEmail failed:", err);
     return NextResponse.json(
       { success: false, error: "Không thể gửi email. Vui lòng thử lại." },
       { status: 502 }

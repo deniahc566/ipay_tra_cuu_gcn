@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export async function sendOtpEmail(to: string, otp: string): Promise<void> {
   if (process.env.NODE_ENV !== "production") {
@@ -6,9 +6,16 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
     return;
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const { error } = await resend.emails.send({
-    from: process.env.EMAIL_FROM!,
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+
+  const { rejected } = await transporter.sendMail({
+    from: `"iPay GCN" <${process.env.GMAIL_USER}>`,
     to,
     subject: "Mã OTP đăng nhập iPay GCN",
     html: `
@@ -30,5 +37,7 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
     `,
   });
 
-  if (error) throw new Error(`Resend error: ${error.message}`);
+  if (rejected.length > 0) {
+    throw new Error(`Gmail rejected recipients: ${rejected.join(", ")}`);
+  }
 }
