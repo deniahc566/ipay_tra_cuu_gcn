@@ -126,10 +126,10 @@ export function EventsTable({ logins, lookups, cancels }: Props) {
                   <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">{formatTime(e.timestamp)}</td>
                     <td className="px-4 py-3 text-slate-800 whitespace-nowrap">{e.email}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.CERT_NO || "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.ACCOUNT_NO || "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.IDCARD || "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.PHONE_NUMBER || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.CERT_NO_hash || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.ACCOUNT_NO_hash || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.IDCARD_hash || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.PHONE_hash || "—"}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <LookupBadge success={e.success} count={e.resultCount} />
                     </td>

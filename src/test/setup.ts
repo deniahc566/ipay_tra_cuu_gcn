@@ -9,4 +9,3 @@ process.env.GMAIL_APP_PASSWORD = "test-app-password";
 process.env.MOTHERDUCK_TOKEN = "test-motherduck-token";
 process.env.CANCEL_ALLOWED_EMAILS = "cancel@vbi.com.vn";
 process.env.ADMIN_EMAILS = "admin@vbi.com.vn";
-process.env.NODE_ENV = "test";
