@@ -19,6 +19,14 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (adminEmails.length > 0 && !adminEmails.includes(session.user.email)) {
+    redirect("/search");
+  }
+
   const events = await getRecentEvents(7);
   const logins = events.filter(
     (e): e is LoginSuccessEvent | LoginFailedEvent | LogoutEvent =>

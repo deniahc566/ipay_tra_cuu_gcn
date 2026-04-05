@@ -23,9 +23,7 @@ function nowVN(): string {
 }
 
 export async function POST(req: NextRequest) {
-  console.log("[cancel] route hit");
   const session = await getIronSession<SessionData>(cookies(), sessionOptions);
-  console.log("[cancel] session user:", session.user?.email ?? "none");
   if (!session.user) {
     return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
   }
@@ -39,6 +37,11 @@ export async function POST(req: NextRequest) {
       { success: false, error: "Không có quyền thực hiện thao tác này." },
       { status: 403 }
     );
+  }
+
+  const cancelApiKey = process.env.VBI_CANCEL_API_KEY;
+  if (!cancelApiKey) {
+    return NextResponse.json({ success: false, error: "Lỗi cấu hình hệ thống." }, { status: 500 });
   }
 
   const body: Partial<CancelInput> = await req.json();
@@ -68,14 +71,12 @@ export async function POST(req: NextRequest) {
     },
   };
 
-  console.log("[cancel] payload:", JSON.stringify(payload));
-
   try {
     const res = await fetch(CANCEL_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-KEY": process.env.VBI_CANCEL_API_KEY ?? "",
+        "X-API-KEY": cancelApiKey,
       },
       body: JSON.stringify(payload),
       cache: "no-store",
@@ -98,7 +99,6 @@ export async function POST(req: NextRequest) {
     }
 
     const json = await res.json();
-    console.log("[cancel] response:", JSON.stringify(json));
 
     if (!json.success || json.data?.success === false) {
       const errorMsg = json.data?.message ?? json.error_message ?? "VBI cancel error";

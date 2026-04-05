@@ -11,6 +11,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
   }
 
+  const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (adminEmails.length > 0 && !adminEmails.includes(session.user.email)) {
+    return NextResponse.json({ success: false, error: "Không có quyền truy cập." }, { status: 403 });
+  }
+
   const days = Math.min(Number(req.nextUrl.searchParams.get("days") ?? 7), 30);
   const events = await getRecentEvents(days);
 

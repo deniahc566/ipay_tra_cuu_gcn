@@ -17,9 +17,14 @@ async function getInstance(): Promise<InstanceType<typeof DuckDBInstance>> {
     // DuckDB resolves home_directory from the HOME env var before reading config.
     // In Netlify serverless functions HOME is unset, so we must set it explicitly.
     if (!process.env.HOME) process.env.HOME = "/tmp";
-    instance = await DuckDBInstance.create(`md:?motherduck_token=${token}`, {
-      home_directory: "/tmp",
-    });
+    try {
+      instance = await DuckDBInstance.create(`md:?motherduck_token=${token}`, {
+        home_directory: "/tmp",
+      });
+    } catch {
+      // Do not re-throw the original error — it contains the token in the connection string
+      throw new Error("Database connection failed");
+    }
   }
   return instance;
 }
@@ -31,7 +36,7 @@ function safeCertNo(value: string): string {
 
 export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]> {
   const safe = safeCertNo(certNo);
-  if (!safe) throw new Error("Invalid certificate number");
+  if (!safe || safe.length > 50) throw new Error("Invalid certificate number");
 
   let db: InstanceType<typeof DuckDBInstance>;
   try {

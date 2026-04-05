@@ -16,13 +16,16 @@ function sanitize(value: string): string {
 }
 
 export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> {
+  const apiKey = process.env.VBI_API_KEY;
+  if (!apiKey) throw new Error("VBI_API_KEY is not configured");
+
   const pObjInput = `{'CERT_NO': '${sanitize(input.CERT_NO)}', 'ACCOUNT_NO': '${sanitize(input.ACCOUNT_NO)}', 'IDCARD': '${sanitize(input.IDCARD)}', 'PHONE_NUMBER': '${sanitize(input.PHONE_NUMBER)}'}`;
 
   const res = await fetch(VBI_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-KEY": process.env.VBI_API_KEY ?? "",
+      "X-API-KEY": apiKey,
     },
     body: JSON.stringify({ P_OBJ_INPUT: pObjInput }),
     cache: "no-store",
@@ -34,7 +37,6 @@ export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> 
   }
 
   const json = await res.json();
-  console.log("[vbi-api] response:", JSON.stringify(json));
   if (!json.success) throw new Error(json.error_message ?? JSON.stringify(json));
 
   const raw: Record<string, string>[] = json.data?.cur_list_0 ?? [];

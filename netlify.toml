@@ -10,7 +10,7 @@
   NEXT_TELEMETRY_DISABLED   = "1"
   # These are not secrets — omit from Netlify secrets scanning
   # ALLOWED_EMAIL_DOMAIN is a plain domain string; NEXT_PUBLIC_* is intentionally public
-  SECRETS_SCAN_OMIT_KEYS    = "ALLOWED_EMAIL_DOMAIN,CANCEL_ALLOWED_EMAILS,NEXT_PUBLIC_CANCEL_ALLOWED_EMAILS"
+  SECRETS_SCAN_OMIT_KEYS    = "ALLOWED_EMAIL_DOMAIN,CANCEL_ALLOWED_EMAILS,NEXT_PUBLIC_CANCEL_ALLOWED_EMAILS,ADMIN_EMAILS"
 
 [[headers]]
   for = "/*"
@@ -20,3 +20,4 @@
     Referrer-Policy           = "strict-origin-when-cross-origin"
     Permissions-Policy        = "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+    Content-Security-Policy   = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"

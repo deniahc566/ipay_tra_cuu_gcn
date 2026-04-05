@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomInt } from "crypto";
 import { signOtpToken } from "@/lib/otp-jwt";
 import { sendOtpEmail } from "@/lib/resend";
+import { checkRateLimit, getClientIP } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json();
@@ -22,6 +23,15 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+  }
+
+  const ip = getClientIP(req);
+  const { allowed, retryAfterSec } = await checkRateLimit(`otp-req:${ip}`, 5, 15 * 60 * 1000);
+  if (!allowed) {
+    return NextResponse.json(
+      { success: false, error: "Quá nhiều yêu cầu. Vui lòng thử lại sau." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+    );
   }
 
   const otp = String(randomInt(100000, 1000000));

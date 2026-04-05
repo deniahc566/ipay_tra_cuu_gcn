@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { vbiApiLookup, type VbiLookupInput } from "@/lib/vbi-api";
 import { appendEvent } from "@/lib/event-store";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const session = await getIronSession<SessionData>(cookies(), sessionOptions);
@@ -15,6 +16,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const { allowed } = await checkRateLimit(`lookup:${session.user.email}`, 200, 60 * 60 * 1000);
+  if (!allowed) {
+    return NextResponse.json(
+      { success: false, error: "Vượt quá giới hạn tra cứu. Vui lòng thử lại sau." },
+      { status: 429 }
+    );
+  }
+
   const body: Partial<VbiLookupInput> = await req.json();
   const { CERT_NO = "", ACCOUNT_NO = "", IDCARD = "", PHONE_NUMBER = "" } = body;
   const criteria = { CERT_NO, ACCOUNT_NO, IDCARD, PHONE_NUMBER };
@@ -22,6 +31,14 @@ export async function POST(req: NextRequest) {
   if (!CERT_NO && !ACCOUNT_NO && !IDCARD && !PHONE_NUMBER) {
     return NextResponse.json(
       { success: false, error: "Vui lòng nhập ít nhất một điều kiện tìm kiếm." },
+      { status: 400 }
+    );
+  }
+
+  const MAX_LEN = 50;
+  if ([CERT_NO, ACCOUNT_NO, IDCARD, PHONE_NUMBER].some((v) => v.length > MAX_LEN)) {
+    return NextResponse.json(
+      { success: false, error: "Dữ liệu đầu vào không hợp lệ." },
       { status: 400 }
     );
   }

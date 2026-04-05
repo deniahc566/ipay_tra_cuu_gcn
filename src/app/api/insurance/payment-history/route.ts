@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
   }
 
   const certNo = req.nextUrl.searchParams.get("certNo");
-  if (!certNo) {
-    return NextResponse.json({ success: false, error: "Thiếu số chứng nhận." }, { status: 400 });
+  if (!certNo || certNo.length > 50 || !/^[a-zA-Z0-9\-_]+$/.test(certNo)) {
+    return NextResponse.json({ success: false, error: "Số chứng nhận không hợp lệ." }, { status: 400 });
   }
 
   try {
