@@ -10,6 +10,23 @@ export interface VbiLookupInput {
   PHONE_NUMBER: string;
 }
 
+const PHONE_RE = /^[0-9]{9,11}$/;
+const IDCARD_RE = /^[0-9]{9,12}$/;
+const CERT_NO_RE = /^[a-zA-Z0-9\-\/]{1,50}$/;
+const ACCOUNT_NO_RE = /^[0-9]{6,20}$/;
+
+/** Validate non-empty fields against expected formats before sending to VBI */
+function validateInput(input: VbiLookupInput): void {
+  if (input.PHONE_NUMBER && !PHONE_RE.test(input.PHONE_NUMBER))
+    throw new Error("PHONE_NUMBER format invalid");
+  if (input.IDCARD && !IDCARD_RE.test(input.IDCARD))
+    throw new Error("IDCARD format invalid");
+  if (input.CERT_NO && !CERT_NO_RE.test(input.CERT_NO))
+    throw new Error("CERT_NO format invalid");
+  if (input.ACCOUNT_NO && !ACCOUNT_NO_RE.test(input.ACCOUNT_NO))
+    throw new Error("ACCOUNT_NO format invalid");
+}
+
 // Sanitize to prevent single-quote injection into the Python-style dict string
 function sanitize(value: string): string {
   return value.replace(/'/g, "").trim();
@@ -18,6 +35,8 @@ function sanitize(value: string): string {
 export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> {
   const apiKey = process.env.VBI_API_KEY;
   if (!apiKey) throw new Error("VBI_API_KEY is not configured");
+
+  validateInput(input);
 
   const pObjInput = `{'CERT_NO': '${sanitize(input.CERT_NO)}', 'ACCOUNT_NO': '${sanitize(input.ACCOUNT_NO)}', 'IDCARD': '${sanitize(input.IDCARD)}', 'PHONE_NUMBER': '${sanitize(input.PHONE_NUMBER)}'}`;
 

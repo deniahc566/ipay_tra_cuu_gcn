@@ -45,7 +45,7 @@ export function EmailStep({ onSuccess }: EmailStepProps) {
         id="email"
         label="Email công ty"
         type="email"
-        placeholder="ten@vbi.com.vn"
+        placeholder=""
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required

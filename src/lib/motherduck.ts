@@ -29,14 +29,8 @@ async function getInstance(): Promise<InstanceType<typeof DuckDBInstance>> {
   return instance;
 }
 
-// Allow only safe characters in cert numbers (alphanumeric, hyphen, underscore)
-function safeCertNo(value: string): string {
-  return value.replace(/[^a-zA-Z0-9\-_]/g, "");
-}
-
 export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]> {
-  const safe = safeCertNo(certNo);
-  if (!safe || safe.length > 50) throw new Error("Invalid certificate number");
+  if (!certNo || certNo.length > 50) throw new Error("Invalid certificate number");
 
   let db: InstanceType<typeof DuckDBInstance>;
   try {
@@ -49,16 +43,21 @@ export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]
 
   const conn = await db.connect();
   try {
-    const reader = await conn.runAndReadAll(
+    // Parameterized query — certNo is bound as a typed VARCHAR value,
+    // never interpolated into the SQL string, making injection structurally impossible.
+    const stmt = await conn.prepare(
       `SELECT
          "Số hợp đồng VBI" AS "Số GCN",
          "Tên khách hàng",
          "Ngày thu phí",
          "Kỳ thu"
        FROM ipay_data.bronze.payment_data
-       WHERE "Số hợp đồng VBI" = '${safe}'
+       WHERE "Số hợp đồng VBI" = $1
        ORDER BY "Kỳ thu"`
     );
+    stmt.bindVarchar(1, certNo);
+    const reader = await stmt.runAndReadAll();
+    stmt.destroySync();
     const rows = reader.getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((row) => ({
       "Số GCN": String(row["Số GCN"] ?? ""),

@@ -29,8 +29,8 @@ export async function checkRateLimit(
     })) as RateLimitEntry | null;
     if (stored && now - stored.windowStart < windowMs) entry = stored;
   } catch {
-    // If Blobs are unavailable, fail open to avoid blocking legitimate users
-    return { allowed: true, remaining: limit - 1, retryAfterSec: 0 };
+    // Fail-closed: if Blobs are unavailable, block the request to prevent bypass
+    return { allowed: false, remaining: 0, retryAfterSec: 60 };
   }
 
   const newCount = entry.count + 1;

@@ -5,6 +5,7 @@ interface BaseEvent {
   type: AuditEventType;
   email: string;
   timestamp: number;
+  requestId?: string;
 }
 
 export interface LoginSuccessEvent extends BaseEvent {
@@ -22,11 +23,12 @@ export interface LogoutEvent extends BaseEvent {
 
 export interface LookupEvent extends BaseEvent {
   type: "lookup";
+  /** All criteria fields are sha256-hashed (first 8 hex chars) — no raw PII stored */
   criteria: {
-    CERT_NO: string;
-    ACCOUNT_NO: string;
-    IDCARD: string;
-    PHONE_NUMBER: string;
+    CERT_NO_hash: string;
+    ACCOUNT_NO_hash: string;
+    IDCARD_hash: string;
+    PHONE_hash: string;
   };
   resultCount: number;
   success: boolean;

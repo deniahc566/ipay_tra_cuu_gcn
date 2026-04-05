@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { appendEvent } from "@/lib/event-store";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const CANCEL_ENDPOINT =
   "https://openapi.evbi.vn/sapi/ipay-cancel-insurance-order";
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Không có quyền thực hiện thao tác này." },
       { status: 403 }
+    );
+  }
+
+  const { allowed, retryAfterSec } = await checkRateLimit(`cancel:${session.user.email}`, 200, 60 * 60 * 1000);
+  if (!allowed) {
+    return NextResponse.json(
+      { success: false, error: "Vượt quá giới hạn hủy đơn. Vui lòng thử lại sau." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
     );
   }
 
