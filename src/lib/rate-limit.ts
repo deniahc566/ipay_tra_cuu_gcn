@@ -17,7 +17,8 @@ export function getClientIP(req: NextRequest): string {
 export async function checkRateLimit(
   key: string,
   limit: number,
-  windowMs: number
+  windowMs: number,
+  failOpen = false
 ): Promise<{ allowed: boolean; remaining: number; retryAfterSec: number }> {
   const store = getStore("ratelimit");
   const now = Date.now();
@@ -29,6 +30,7 @@ export async function checkRateLimit(
     })) as RateLimitEntry | null;
     if (stored && now - stored.windowStart < windowMs) entry = stored;
   } catch {
+    if (failOpen) return { allowed: true, remaining: limit, retryAfterSec: 0 };
     // Fail-closed: if Blobs are unavailable, block the request to prevent bypass
     return { allowed: false, remaining: 0, retryAfterSec: 60 };
   }

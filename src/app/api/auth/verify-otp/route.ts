@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { allowed, retryAfterSec } = await checkRateLimit(`otp-verify:${payload.email}`, 10, 15 * 60 * 1000);
+  const { allowed, retryAfterSec } = await checkRateLimit(`otp-verify:${payload.email}`, 30, 15 * 60 * 1000);
   if (!allowed) {
     return NextResponse.json(
       { success: false, error: "Quá nhiều lần thử. Vui lòng thử lại sau." },

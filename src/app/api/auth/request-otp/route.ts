@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = getClientIP(req);
-  const { allowed, retryAfterSec } = await checkRateLimit(`otp-req:${ip}`, 5, 15 * 60 * 1000);
+  const { allowed, retryAfterSec } = await checkRateLimit(`otp-req:${ip}`, 30, 15 * 60 * 1000);
   if (!allowed) {
     return NextResponse.json(
       { success: false, error: "Quá nhiều yêu cầu. Vui lòng thử lại sau." },

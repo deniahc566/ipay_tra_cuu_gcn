@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { allowed, retryAfterSec } = await checkRateLimit(`cancel:${session.user.email}`, 200, 60 * 60 * 1000);
+  const { allowed, retryAfterSec } = await checkRateLimit(`cancel:${session.user.email}`, 200, 60 * 60 * 1000, true);
   if (!allowed) {
     return NextResponse.json(
       { success: false, error: "Vượt quá giới hạn hủy đơn. Vui lòng thử lại sau." },
