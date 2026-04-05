@@ -14,7 +14,9 @@ async function getInstance(): Promise<InstanceType<typeof DuckDBInstance>> {
   if (!instance) {
     const token = process.env.MOTHERDUCK_TOKEN;
     if (!token) throw new Error("MOTHERDUCK_TOKEN is not set");
-    instance = await DuckDBInstance.create(`md:?motherduck_token=${token}`);
+    instance = await DuckDBInstance.create(`md:?motherduck_token=${token}`, {
+      home_directory: "/tmp",
+    });
   }
   return instance;
 }
