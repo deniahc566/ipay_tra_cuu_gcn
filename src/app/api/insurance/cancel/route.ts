@@ -8,6 +8,11 @@ import { checkRateLimit } from "@/lib/rate-limit";
 const CANCEL_ENDPOINT =
   "https://openapi.evbi.vn/sapi/ipay-cancel-insurance-order";
 
+const CANCEL_ALLOWED_EMAILS = (process.env.CANCEL_ALLOWED_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim())
+  .filter(Boolean);
+
 interface CancelInput {
   CERT_NO: string;
   PROD_CODE: string;
@@ -29,11 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
   }
 
-  const allowedEmails = (process.env.CANCEL_ALLOWED_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter(Boolean);
-  if (allowedEmails.length > 0 && !allowedEmails.includes(session.user.email)) {
+  if (CANCEL_ALLOWED_EMAILS.length > 0 && !CANCEL_ALLOWED_EMAILS.includes(session.user.email)) {
     return NextResponse.json(
       { success: false, error: "Không có quyền thực hiện thao tác này." },
       { status: 403 }
@@ -80,16 +81,25 @@ export async function POST(req: NextRequest) {
     },
   };
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+
   try {
-    const res = await fetch(CANCEL_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": cancelApiKey,
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
+    let res: Response;
+    try {
+      res = await fetch(CANCEL_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": cancelApiKey,
+        },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!res.ok) {
       const rawBody = await res.text().catch(() => "(unreadable)");

@@ -7,11 +7,17 @@ export interface PaymentRecord {
   "Kỳ thu": string;
 }
 
-// Singleton — reuse across requests to avoid re-authenticating with MotherDuck each time
+// Singleton — reuse across requests to avoid re-authenticating with MotherDuck each time.
+// `connecting` holds the in-flight promise so concurrent cold-start requests share one
+// auth attempt instead of each spawning their own.
 let instance: InstanceType<typeof DuckDBInstance> | null = null;
+let connecting: Promise<InstanceType<typeof DuckDBInstance>> | null = null;
 
 async function getInstance(): Promise<InstanceType<typeof DuckDBInstance>> {
-  if (!instance) {
+  if (instance) return instance;
+  if (connecting) return connecting;
+
+  connecting = (async () => {
     const token = process.env.MOTHERDUCK_TOKEN;
     if (!token) throw new Error("MOTHERDUCK_TOKEN is not set");
     // DuckDB resolves home_directory from the HOME env var before reading config.
@@ -21,25 +27,23 @@ async function getInstance(): Promise<InstanceType<typeof DuckDBInstance>> {
       instance = await DuckDBInstance.create(`md:?motherduck_token=${token}`, {
         home_directory: "/tmp",
       });
+      return instance;
     } catch {
+      instance = null;
       // Do not re-throw the original error — it contains the token in the connection string
       throw new Error("Database connection failed");
+    } finally {
+      connecting = null;
     }
-  }
-  return instance;
+  })();
+
+  return connecting;
 }
 
 export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]> {
   if (!certNo || certNo.length > 50) throw new Error("Invalid certificate number");
 
-  let db: InstanceType<typeof DuckDBInstance>;
-  try {
-    db = await getInstance();
-  } catch (err) {
-    // Reset on connection failure so next request retries
-    instance = null;
-    throw err;
-  }
+  const db = await getInstance();
 
   const conn = await db.connect();
   try {
@@ -53,7 +57,8 @@ export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]
          "Kỳ thu"
        FROM ipay_data.bronze.payment_data
        WHERE "Số hợp đồng VBI" = $1
-       ORDER BY "Kỳ thu"`
+       ORDER BY "Kỳ thu"
+       LIMIT 200`
     );
     stmt.bindVarchar(1, certNo);
     const reader = await stmt.runAndReadAll();

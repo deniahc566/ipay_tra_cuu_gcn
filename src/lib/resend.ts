@@ -1,18 +1,23 @@
 import nodemailer from "nodemailer";
 
+// Singleton — reuse the SMTP connection across warm invocations.
+// In development the transporter is null and OTPs are logged to console instead.
+const transporter =
+  process.env.NODE_ENV === "production"
+    ? nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      })
+    : null;
+
 export async function sendOtpEmail(to: string, otp: string): Promise<void> {
-  if (process.env.NODE_ENV !== "production") {
+  if (!transporter) {
     console.log(`[DEV OTP] ${to} → ${otp}`);
     return;
   }
-
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
 
   const { rejected } = await transporter.sendMail({
     from: `"iPay GCN" <${process.env.GMAIL_USER}>`,

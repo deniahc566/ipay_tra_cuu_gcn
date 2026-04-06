@@ -40,15 +40,24 @@ export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> 
 
   const pObjInput = `{'CERT_NO': '${sanitize(input.CERT_NO)}', 'ACCOUNT_NO': '${sanitize(input.ACCOUNT_NO)}', 'IDCARD': '${sanitize(input.IDCARD)}', 'PHONE_NUMBER': '${sanitize(input.PHONE_NUMBER)}'}`;
 
-  const res = await fetch(VBI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-KEY": apiKey,
-    },
-    body: JSON.stringify({ P_OBJ_INPUT: pObjInput }),
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+
+  let res: Response;
+  try {
+    res = await fetch(VBI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": apiKey,
+      },
+      body: JSON.stringify({ P_OBJ_INPUT: pObjInput }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "(unreadable)");

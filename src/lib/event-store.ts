@@ -24,14 +24,19 @@ export async function appendEvent(event: AppendableEvent): Promise<void> {
   }
 }
 
-export async function getRecentEvents(days = 7): Promise<AuditEvent[]> {
+export async function getRecentEvents(opts?: {
+  from?: number; // ms timestamp, default: now - 7 days
+  to?: number;   // ms timestamp, default: now
+}): Promise<AuditEvent[]> {
   try {
+    const now = Date.now();
+    const from = opts?.from ?? now - 7 * 86_400_000;
+    const to = opts?.to ?? now;
     const store = getStore("audit");
-    const cutoff = Date.now() - days * 86_400_000;
     const { blobs } = await store.list({ prefix: "events/" });
     const events = (await Promise.all(
       blobs.map((b) => store.get(b.key, { type: "json" }) as Promise<AuditEvent>)
-    )).filter((e): e is AuditEvent => !!e && e.timestamp >= cutoff);
+    )).filter((e): e is AuditEvent => !!e && e.timestamp >= from && e.timestamp <= to);
     return events.sort((a, b) => b.timestamp - a.timestamp);
   } catch {
     return [];
