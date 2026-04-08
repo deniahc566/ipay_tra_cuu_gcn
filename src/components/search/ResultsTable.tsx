@@ -233,7 +233,7 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
                                 <tr key={j} className="border-t border-slate-100 bg-white">
                                   <td className="px-3 py-2 font-mono text-slate-700">{row["Số GCN"] || "—"}</td>
                                   <td className="px-3 py-2 text-slate-700">{row["Tên khách hàng"] || "—"}</td>
-                                  <td className="px-3 py-2 text-slate-600">{row["Ngày thu phí"] || "—"}</td>
+                                  <td className="px-3 py-2 text-slate-600">{row["Ngày thu phí"] ? new Date(row["Ngày thu phí"]).toISOString().slice(0, 10) : "—"}</td>
                                   <td className="px-3 py-2 text-slate-600">{row["Kỳ thu"] || "—"}</td>
                                   <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{PROD_FEE[r.PROD_CODE] ?? "—"}</td>
                                 </tr>
