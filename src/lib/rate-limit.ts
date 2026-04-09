@@ -20,7 +20,14 @@ export async function checkRateLimit(
   windowMs: number,
   failOpen = false
 ): Promise<{ allowed: boolean; remaining: number; retryAfterSec: number }> {
-  const store = getStore("ratelimit");
+  let store: ReturnType<typeof getStore>;
+  try {
+    store = getStore("ratelimit");
+  } catch {
+    if (failOpen) return { allowed: true, remaining: limit, retryAfterSec: 0 };
+    return { allowed: false, remaining: 0, retryAfterSec: 60 };
+  }
+
   const now = Date.now();
   let entry: RateLimitEntry = { count: 0, windowStart: now };
 

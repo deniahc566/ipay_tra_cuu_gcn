@@ -34,9 +34,15 @@ export async function getRecentEvents(opts?: {
     const to = opts?.to ?? now;
     const store = getStore("audit");
     const { blobs } = await store.list({ prefix: "events/" });
+    // Keys have the form events/${isoDate}-${uuid} where ':' and '.' → '-'.
+    // Because ISO dates sort lexicographically, we can pre-filter by key bounds
+    // to avoid fetching every blob individually (each is a separate HTTP request).
+    const fromKey = `events/${new Date(from).toISOString().replace(/[:.]/g, "-")}`;
+    const toKey   = `events/${new Date(to + 86_400_000).toISOString().replace(/[:.]/g, "-")}`;
+    const inRange = blobs.filter((b) => b.key >= fromKey && b.key <= toKey);
     const events = (await Promise.all(
-      blobs.map((b) => store.get(b.key, { type: "json" }) as Promise<AuditEvent>)
-    )).filter((e): e is AuditEvent => !!e && e.timestamp >= from && e.timestamp <= to);
+      inRange.map((b) => store.get(b.key, { type: "json" }) as Promise<AuditEvent>)
+    )).filter((e): e is AuditEvent => !!e);
     return events.sort((a, b) => b.timestamp - a.timestamp);
   } catch {
     return [];
