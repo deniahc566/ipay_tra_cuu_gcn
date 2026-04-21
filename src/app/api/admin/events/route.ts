@@ -70,8 +70,15 @@ export async function GET(req: NextRequest) {
     const lookups = events.filter((e): e is LookupEvent => e.type === "lookup");
     const cancels = events.filter((e): e is CancelEvent => e.type === "cancel");
 
-    console.log("[admin/events] sending response: logins=%d lookups=%d cancels=%d", logins.length, lookups.length, cancels.length);
-    return NextResponse.json({ success: true, logins, lookups, cancels });
+    let body: string;
+    try {
+      body = JSON.stringify({ success: true, logins, lookups, cancels });
+    } catch (serErr) {
+      console.error("[admin/events] JSON serialization failed:", serErr);
+      return NextResponse.json({ success: false, error: "Lỗi serialize dữ liệu." }, { status: 500 });
+    }
+    console.log("[admin/events] sending response: logins=%d lookups=%d cancels=%d size=%dB", logins.length, lookups.length, cancels.length, body.length);
+    return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (err) {
     console.error("[admin/events] unhandled error:", err);
     return NextResponse.json(

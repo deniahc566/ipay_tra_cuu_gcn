@@ -47,12 +47,13 @@ async function fetchInBatches<T>(
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  // Suppress unhandled-rejection warnings on the timeout promise itself
+  timeoutPromise.catch(() => {});
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
 
 export async function getRecentEvents(opts?: {
