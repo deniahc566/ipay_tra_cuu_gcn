@@ -24,6 +24,18 @@ export async function appendEvent(event: AppendableEvent): Promise<void> {
   }
 }
 
+async function fetchInBatches<T>(
+  items: Array<() => Promise<T>>,
+  batchSize = 20,
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = await Promise.all(items.slice(i, i + batchSize).map((fn) => fn()));
+    results.push(...batch);
+  }
+  return results;
+}
+
 export async function getRecentEvents(opts?: {
   from?: number; // ms timestamp, default: now - 7 days
   to?: number;   // ms timestamp, default: now
@@ -33,18 +45,29 @@ export async function getRecentEvents(opts?: {
     const from = opts?.from ?? now - 7 * 86_400_000;
     const to = opts?.to ?? now;
     const store = getStore("audit");
-    const { blobs } = await store.list({ prefix: "events/" });
-    // Keys have the form events/${isoDate}-${uuid} where ':' and '.' → '-'.
-    // Because ISO dates sort lexicographically, we can pre-filter by key bounds
-    // to avoid fetching every blob individually (each is a separate HTTP request).
+
+    // Collect all blob keys in the date range using paginated listing
     const fromKey = `events/${new Date(from).toISOString().replace(/[:.]/g, "-")}`;
     const toKey   = `events/${new Date(to + 86_400_000).toISOString().replace(/[:.]/g, "-")}`;
-    const inRange = blobs.filter((b) => b.key >= fromKey && b.key <= toKey);
-    const events = (await Promise.all(
-      inRange.map((b) => store.get(b.key, { type: "json" }) as Promise<AuditEvent>)
-    )).filter((e): e is AuditEvent => !!e);
+
+    const inRange: string[] = [];
+    for await (const page of store.list({ prefix: "events/", paginate: true })) {
+      for (const b of page.blobs) {
+        if (b.key >= fromKey && b.key <= toKey) inRange.push(b.key);
+      }
+    }
+
+    // Fetch matched blobs in batches of 20 to avoid OOM / connection exhaustion
+    const events = (
+      await fetchInBatches(
+        inRange.map((key) => () => store.get(key, { type: "json" }) as Promise<AuditEvent>),
+        20,
+      )
+    ).filter((e): e is AuditEvent => !!e);
+
     return events.sort((a, b) => b.timestamp - a.timestamp);
-  } catch {
+  } catch (err) {
+    console.error("[event-store] getRecentEvents error:", err);
     return [];
   }
 }
