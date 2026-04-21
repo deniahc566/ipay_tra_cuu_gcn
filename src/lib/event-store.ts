@@ -12,6 +12,10 @@ type AppendableEvent =
 
 export async function appendEvent(event: AppendableEvent): Promise<void> {
   const full = { ...event, id: crypto.randomUUID() } as AuditEvent;
+  if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY) {
+    console.log("[audit]", JSON.stringify(full));
+    return;
+  }
   try {
     const store = getStore("audit");
     const isoKey = new Date(event.timestamp)
@@ -40,6 +44,11 @@ export async function getRecentEvents(opts?: {
   from?: number; // ms timestamp, default: now - 7 days
   to?: number;   // ms timestamp, default: now
 }): Promise<AuditEvent[]> {
+  // Netlify Blobs requires a deployment context — bail out early if not available
+  if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY) {
+    console.warn("[event-store] Netlify Blobs context not detected, skipping.");
+    return [];
+  }
   try {
     const now = Date.now();
     const from = opts?.from ?? now - 7 * 86_400_000;

@@ -151,14 +151,18 @@ export function EventsTable() {
       const params = new URLSearchParams({ dateFrom: from, dateTo: to });
       if (email) params.set("email", email.trim().toLowerCase());
       const res = await fetch(`/api/admin/events?${params}`);
+      if (!res.ok && res.headers.get("content-type")?.includes("text/html")) {
+        setFetchError(`Lỗi server HTTP ${res.status}. Xem Netlify Function logs để biết chi tiết.`);
+        return;
+      }
       const json = await res.json();
       if (!json.success) {
         setFetchError(json.error ?? "Lỗi tải dữ liệu.");
         return;
       }
       setData({ logins: json.logins, lookups: json.lookups, cancels: json.cancels });
-    } catch {
-      setFetchError("Không thể kết nối đến hệ thống.");
+    } catch (err) {
+      setFetchError(`Không thể kết nối đến hệ thống. (${err instanceof Error ? err.message : String(err)})`);
     } finally {
       setLoading(false);
     }
