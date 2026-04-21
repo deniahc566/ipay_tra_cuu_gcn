@@ -5,14 +5,20 @@ import { sessionOptions, type SessionData } from "@/lib/session";
 import { getRecentEvents } from "@/lib/event-store";
 import type { LoginSuccessEvent, LoginFailedEvent, LogoutEvent, LookupEvent, CancelEvent } from "@/types/audit";
 
+export const dynamic = "force-dynamic";
+
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
   .map((e) => e.trim())
   .filter(Boolean);
 
 export async function GET(req: NextRequest) {
+  console.log("[admin/events] handler start");
   try {
+    console.log("[admin/events] calling getIronSession");
     const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+    console.log("[admin/events] session user:", session.user?.email ?? "none");
+
     if (!session.user) {
       return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
     }
@@ -49,7 +55,9 @@ export async function GET(req: NextRequest) {
       from = to - 90 * 86_400_000;
     }
 
+    console.log("[admin/events] calling getRecentEvents, from:", new Date(from).toISOString(), "to:", new Date(to).toISOString());
     let events = await getRecentEvents({ from, to });
+    console.log("[admin/events] getRecentEvents returned", events.length, "events");
 
     if (emailFilter) {
       events = events.filter((e) => e.email.toLowerCase() === emailFilter);
@@ -62,6 +70,7 @@ export async function GET(req: NextRequest) {
     const lookups = events.filter((e): e is LookupEvent => e.type === "lookup");
     const cancels = events.filter((e): e is CancelEvent => e.type === "cancel");
 
+    console.log("[admin/events] sending response: logins=%d lookups=%d cancels=%d", logins.length, lookups.length, cancels.length);
     return NextResponse.json({ success: true, logins, lookups, cancels });
   } catch (err) {
     console.error("[admin/events] unhandled error:", err);
