@@ -10,9 +10,15 @@ type AppendableEvent =
   | Omit<LookupEvent, "id">
   | Omit<CancelEvent, "id">;
 
+function blobsAvailable(): boolean {
+  // NETLIFY_BLOBS_CONTEXT is injected by Netlify only when Blobs is enabled for the site.
+  // NETLIFY alone is not sufficient — it is always true in any Netlify environment.
+  return !!process.env.NETLIFY_BLOBS_CONTEXT;
+}
+
 export async function appendEvent(event: AppendableEvent): Promise<void> {
   const full = { ...event, id: crypto.randomUUID() } as AuditEvent;
-  if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY) {
+  if (!blobsAvailable()) {
     console.log("[audit]", JSON.stringify(full));
     return;
   }
@@ -40,13 +46,21 @@ async function fetchInBatches<T>(
   return results;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 export async function getRecentEvents(opts?: {
   from?: number; // ms timestamp, default: now - 7 days
   to?: number;   // ms timestamp, default: now
 }): Promise<AuditEvent[]> {
-  // Netlify Blobs requires a deployment context — bail out early if not available
-  if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY) {
-    console.warn("[event-store] Netlify Blobs context not detected, skipping.");
+  if (!blobsAvailable()) {
+    console.warn("[event-store] NETLIFY_BLOBS_CONTEXT not set — Blobs may not be enabled for this site.");
     return [];
   }
   try {
@@ -55,21 +69,23 @@ export async function getRecentEvents(opts?: {
     const to = opts?.to ?? now;
     const store = getStore("audit");
 
-    // Collect all blob keys in the date range using paginated listing
     const fromKey = `events/${new Date(from).toISOString().replace(/[:.]/g, "-")}`;
     const toKey   = `events/${new Date(to + 86_400_000).toISOString().replace(/[:.]/g, "-")}`;
 
-    const inRange: string[] = [];
-    for await (const page of store.list({ prefix: "events/", paginate: true })) {
-      for (const b of page.blobs) {
-        if (b.key >= fromKey && b.key <= toKey) inRange.push(b.key);
-      }
-    }
+    // Non-paginated list — abort after 5 s to prevent function from hanging when
+    // Blobs is misconfigured and the underlying HTTP call never resolves.
+    const { blobs } = await withTimeout(
+      store.list({ prefix: "events/" }),
+      5000,
+      "store.list"
+    );
+
+    const inRange = blobs.filter((b) => b.key >= fromKey && b.key <= toKey);
 
     // Fetch matched blobs in batches of 20 to avoid OOM / connection exhaustion
     const events = (
       await fetchInBatches(
-        inRange.map((key) => () => store.get(key, { type: "json" }) as Promise<AuditEvent>),
+        inRange.map((b) => () => store.get(b.key, { type: "json" }) as Promise<AuditEvent>),
         20,
       )
     ).filter((e): e is AuditEvent => !!e);
