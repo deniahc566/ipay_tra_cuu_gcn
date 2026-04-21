@@ -7,7 +7,13 @@ import { appendEvent } from "@/lib/event-store";
 export async function POST() {
   const cookieStore = cookies();
   const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
-  const email = session.user?.email ?? "unknown";
+  if (!session.user) {
+    return NextResponse.json(
+      { success: false, error: "Chưa đăng nhập." },
+      { status: 401 }
+    );
+  }
+  const email = session.user.email;
   session.destroy();
   void appendEvent({ type: "logout", email, timestamp: Date.now() });
   return NextResponse.json({ success: true });

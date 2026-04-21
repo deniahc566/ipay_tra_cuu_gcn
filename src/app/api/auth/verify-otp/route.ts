@@ -27,12 +27,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { allowed, retryAfterSec } = await checkRateLimit(`otp-verify:${payload.email}`, 30, 15 * 60 * 1000);
+  // 5 attempts per 10-minute window (matches OTP lifetime). On lockout, invalidate
+  // the OTP cookie to force a fresh OTP request — prevents unlimited brute-force
+  // across repeated verify calls.
+  const { allowed, retryAfterSec } = await checkRateLimit(`otp-verify:${payload.email}`, 5, 10 * 60 * 1000);
   if (!allowed) {
-    return NextResponse.json(
-      { success: false, error: "Quá nhiều lần thử. Vui lòng thử lại sau." },
+    const res = NextResponse.json(
+      { success: false, error: "Quá nhiều lần thử. Vui lòng yêu cầu mã OTP mới." },
       { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
     );
+    res.cookies.set("otp_token", "", {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 0,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
+    return res;
   }
 
   const { otp: submittedOtp } = await req.json();
