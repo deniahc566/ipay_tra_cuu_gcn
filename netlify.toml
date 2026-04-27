@@ -6,10 +6,8 @@
   package = "@netlify/plugin-nextjs"
 
 [functions]
-  # DuckDB native bindings need nft bundler to include .node files correctly.
-  # Timeout raised to 26s (Netlify max) — MotherDuck cold-start takes ~6s.
+  # nft bundler correctly traces and includes native .node binaries (DuckDB).
   node_bundler          = "nft"
-  timeout               = 26
   external_node_modules = ["@duckdb/node-api", "@duckdb/node-bindings"]
 
 [build.environment]
