@@ -214,7 +214,6 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
                             <thead>
                               <tr className="bg-slate-100 text-slate-600 text-left">
                                 <th className="px-3 py-2 font-semibold whitespace-nowrap">Số GCN</th>
-                                <th className="px-3 py-2 font-semibold whitespace-nowrap">Tên khách hàng</th>
                                 <th className="px-3 py-2 font-semibold whitespace-nowrap">Ngày thu phí</th>
                                 <th className="px-3 py-2 font-semibold whitespace-nowrap">Kỳ thu</th>
                                 <th className="px-3 py-2 font-semibold whitespace-nowrap">Số tiền</th>
@@ -224,7 +223,6 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
                               {pState.rows.map((row, j) => (
                                 <tr key={j} className="border-t border-slate-100 bg-white">
                                   <td className="px-3 py-2 font-mono text-slate-700">{row["Số GCN"] || "—"}</td>
-                                  <td className="px-3 py-2 text-slate-700">{row["Tên khách hàng"] || "—"}</td>
                                   <td className="px-3 py-2 text-slate-600">{row["Ngày thu phí"] ? new Date(row["Ngày thu phí"]).toISOString().slice(0, 10) : "—"}</td>
                                   <td className="px-3 py-2 text-slate-600">{row["Kỳ thu"] || "—"}</td>
                                   <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{PROD_FEE[r.PROD_CODE] ?? "—"}</td>

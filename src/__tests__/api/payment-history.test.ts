@@ -17,7 +17,6 @@ vi.mock("@/lib/motherduck", () => ({
   getPaymentHistory: vi.fn().mockResolvedValue([
     {
       "Số GCN": "VBI-001",
-      "Tên khách hàng": "Nguyễn Văn A",
       "Ngày thu phí": "01/01/2024",
       "Kỳ thu": "1",
     },
@@ -37,7 +36,7 @@ describe("GET /api/insurance/payment-history", () => {
     vi.clearAllMocks();
     mockSession.user = { email: "user@vbi.com.vn", loginAt: Date.now() };
     vi.mocked(getPaymentHistory).mockResolvedValue([
-      { "Số GCN": "VBI-001", "Tên khách hàng": "A", "Ngày thu phí": "01/01/2024", "Kỳ thu": "1" },
+      { "Số GCN": "VBI-001", "Ngày thu phí": "01/01/2024", "Kỳ thu": "1" },
     ]);
   });
 

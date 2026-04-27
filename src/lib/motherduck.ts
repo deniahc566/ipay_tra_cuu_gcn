@@ -2,7 +2,6 @@ import { DuckDBInstance } from "@duckdb/node-api";
 
 export interface PaymentRecord {
   "Số GCN": string;
-  "Tên khách hàng": string;
   "Ngày thu phí": string;
   "Kỳ thu": string;
 }
@@ -60,7 +59,6 @@ export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]
     const stmt = await conn.prepare(
       `SELECT
          "Số hợp đồng VBI" AS "Số GCN",
-         "Tên khách hàng",
          "Ngày thu phí",
          "Kỳ thu"
        FROM ipay_data.bronze.payment_data
@@ -74,7 +72,6 @@ export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]
     const rows = reader.getRowObjectsJS() as Record<string, unknown>[];
     return rows.map((row) => ({
       "Số GCN": String(row["Số GCN"] ?? ""),
-      "Tên khách hàng": String(row["Tên khách hàng"] ?? ""),
       "Ngày thu phí": String(row["Ngày thu phí"] ?? ""),
       "Kỳ thu": String(row["Kỳ thu"] ?? ""),
     }));

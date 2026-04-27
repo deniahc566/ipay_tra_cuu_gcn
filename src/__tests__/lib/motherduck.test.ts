@@ -89,7 +89,7 @@ describe("getPaymentHistory", () => {
 
   it("returns mapped PaymentRecord rows on success", async () => {
     const mockRows = [
-      { "Số GCN": "VBI-001", "Tên khách hàng": "Nguyễn Văn A", "Ngày thu phí": "01/01/2024", "Kỳ thu": "1" },
+      { "Số GCN": "VBI-001", "Ngày thu phí": "01/01/2024", "Kỳ thu": "1" },
     ];
     const mockConn = makeMockConn(mockRows);
     vi.mocked(DuckDBInstance.create).mockResolvedValue({
@@ -100,7 +100,7 @@ describe("getPaymentHistory", () => {
     const result = await getPaymentHistory("VBI-001");
     expect(result).toHaveLength(1);
     expect(result[0]["Số GCN"]).toBe("VBI-001");
-    expect(result[0]["Tên khách hàng"]).toBe("Nguyễn Văn A");
+    expect(result[0]["Ngày thu phí"]).toBe("01/01/2024");
     expect(mockConn.closeSync).toHaveBeenCalled();
   });
 
