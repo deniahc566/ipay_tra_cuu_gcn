@@ -52,7 +52,7 @@ describe("checkRateLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStore.getWithMetadata.mockResolvedValue(null);
-    mockStore.setJSON.mockResolvedValue({ modified: true, etag: "test-etag" });
+    mockStore.setJSON.mockResolvedValue(undefined);
   });
 
   it("allows first request (count=1, limit=5)", async () => {
@@ -106,7 +106,7 @@ describe("checkRateLimit", () => {
     expect(result.retryAfterSec).toBe(60);
   });
 
-  it("persists updated count to store with CAS etag", async () => {
+  it("persists updated count to store", async () => {
     mockStore.getWithMetadata.mockResolvedValue({
       data: { count: 2, windowStart: Date.now() - 1000 },
       etag: "test-etag",
@@ -115,25 +115,15 @@ describe("checkRateLimit", () => {
     await checkRateLimit("test-key", 5, 60_000);
     expect(mockStore.setJSON).toHaveBeenCalledWith(
       "test-key",
-      expect.objectContaining({ count: 3 }),
-      expect.objectContaining({ onlyIfMatch: "test-etag" })
+      expect.objectContaining({ count: 3 })
     );
   });
 
-  it("retries on CAS conflict (modified: false) and succeeds on second attempt", async () => {
-    mockStore.getWithMetadata.mockResolvedValue({
-      data: { count: 1, windowStart: Date.now() - 1000 },
-      etag: "test-etag",
-      metadata: {},
-    });
-    // First write is rejected (conflict), second succeeds
-    mockStore.setJSON
-      .mockResolvedValueOnce({ modified: false })
-      .mockResolvedValueOnce({ modified: true, etag: "new-etag" });
-
-    const result = await checkRateLimit("test-key", 5, 60_000);
-    expect(result.allowed).toBe(true);
-    expect(mockStore.setJSON).toHaveBeenCalledTimes(2);
+  it("FAIL-CLOSED: blocks when setJSON throws and failOpen=false", async () => {
+    mockStore.setJSON.mockRejectedValue(new Error("write failed"));
+    const result = await checkRateLimit("test-key", 5, 60_000, false);
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfterSec).toBe(60);
   });
 
   it("FAIL-OPEN: allows request when Blobs throws and failOpen=true", async () => {
@@ -142,13 +132,12 @@ describe("checkRateLimit", () => {
     expect(result.allowed).toBe(true);
   });
 
-  it("uses onlyIfNew when no prior entry exists", async () => {
+  it("writes new entry when no prior entry exists", async () => {
     mockStore.getWithMetadata.mockResolvedValue(null);
     await checkRateLimit("test-key", 5, 60_000);
     expect(mockStore.setJSON).toHaveBeenCalledWith(
       "test-key",
-      expect.objectContaining({ count: 1 }),
-      expect.objectContaining({ onlyIfNew: true })
+      expect.objectContaining({ count: 1 })
     );
   });
 });
