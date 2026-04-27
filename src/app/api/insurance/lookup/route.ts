@@ -6,6 +6,25 @@ import { sessionOptions, type SessionData } from "@/lib/session";
 import { vbiApiLookup, type VbiLookupInput, PHONE_RE, IDCARD_RE, CERT_NO_RE, ACCOUNT_NO_RE } from "@/lib/vbi-api";
 import { appendEvent } from "@/lib/event-store";
 
+// In-memory sliding-window counter — zero latency, resets on container restart.
+// Serverless containers are short-lived, so this is intentionally per-instance.
+// Purpose: slow down a compromised account doing bulk scraping within one container.
+const inMemoryCounts = new Map<string, { count: number; windowStart: number }>();
+const IN_MEMORY_LIMIT = 200;
+const IN_MEMORY_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function inMemoryRateCheck(key: string): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  const now = Date.now();
+  const entry = inMemoryCounts.get(key);
+  if (!entry || now - entry.windowStart >= IN_MEMORY_WINDOW_MS) {
+    inMemoryCounts.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= IN_MEMORY_LIMIT;
+}
+
 function hashField(value: string): string {
   if (!value) return "";
   return crypto.createHash("sha256").update(value).digest("hex").slice(0, 8);
@@ -19,6 +38,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Chưa đăng nhập." },
       { status: 401, headers: { "X-Request-ID": requestId } }
+    );
+  }
+
+  if (!inMemoryRateCheck(`lookup:${session.user.email}`)) {
+    return NextResponse.json(
+      { success: false, error: "Vượt quá giới hạn tra cứu. Vui lòng thử lại sau." },
+      { status: 429, headers: { "X-Request-ID": requestId } }
     );
   }
 

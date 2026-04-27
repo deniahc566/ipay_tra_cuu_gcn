@@ -64,6 +64,22 @@ describe("POST /api/insurance/lookup", () => {
     expect(res.headers.get("X-Request-ID")).toBeTruthy();
   });
 
+  it("returns 429 after exceeding in-memory rate limit", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      // Exhaust the limit + 1 extra request
+      const limit = 200;
+      for (let i = 0; i < limit; i++) {
+        await POST(makeRequest({ CERT_NO: `VBI-${i}` }));
+      }
+      const res = await POST(makeRequest({ CERT_NO: "VBI-OVER" }));
+      expect(res.status).toBe(429);
+      expect(res.headers.get("X-Request-ID")).toBeTruthy();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   // --- Input validation ---
   it("returns 400 when all criteria are empty", async () => {
     const res = await POST(makeRequest({}));
