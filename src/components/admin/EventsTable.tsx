@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import type {
   AuditEvent,
   LoginSuccessEvent,
@@ -421,8 +421,8 @@ export function EventsTable() {
                   </thead>
                   <tbody>
                     {paginate(visibleLogins, "logins").map((e) => (
-                      <>
-                        <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
+                      <Fragment key={e.id}>
+                        <tr className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">{formatTime(e.timestamp)}</td>
                           <td className="px-4 py-3 text-slate-800 whitespace-nowrap">{e.email}</td>
                           <td className="px-4 py-3 whitespace-nowrap"><LoginBadge type={e.type} /></td>
@@ -440,9 +440,9 @@ export function EventsTable() {
                           </td>
                         </tr>
                         {expandedId === e.id && (
-                          <DetailPanel key={`${e.id}-detail`} event={e} colSpan={5} />
+                          <DetailPanel event={e} colSpan={5} />
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -474,8 +474,8 @@ export function EventsTable() {
                   </thead>
                   <tbody>
                     {paginate(visibleLookups, "lookups").map((e) => (
-                      <>
-                        <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
+                      <Fragment key={e.id}>
+                        <tr className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">{formatTime(e.timestamp)}</td>
                           <td className="px-4 py-3 text-slate-800 whitespace-nowrap">{e.email}</td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.criteria.CERT_NO_hash || "—"}</td>
@@ -496,9 +496,9 @@ export function EventsTable() {
                           </td>
                         </tr>
                         {expandedId === e.id && (
-                          <DetailPanel key={`${e.id}-detail`} event={e} colSpan={8} />
+                          <DetailPanel event={e} colSpan={8} />
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -528,8 +528,8 @@ export function EventsTable() {
                   </thead>
                   <tbody>
                     {paginate(visibleCancels, "cancels").map((e) => (
-                      <>
-                        <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
+                      <Fragment key={e.id}>
+                        <tr className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">{formatTime(e.timestamp)}</td>
                           <td className="px-4 py-3 text-slate-800 whitespace-nowrap">{e.email}</td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{e.certNo || "—"}</td>
@@ -553,9 +553,9 @@ export function EventsTable() {
                           </td>
                         </tr>
                         {expandedId === e.id && (
-                          <DetailPanel key={`${e.id}-detail`} event={e} colSpan={6} />
+                          <DetailPanel event={e} colSpan={6} />
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

@@ -4,11 +4,12 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { getPaymentHistory } from "@/lib/motherduck";
+import { withTimeout } from "@/lib/event-store";
 
 const TIMEOUT_MS = 20_000;
 
 export async function GET(req: NextRequest) {
-  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
   if (!session.user) {
     return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
   }
@@ -21,12 +22,7 @@ export async function GET(req: NextRequest) {
   const requestId = crypto.randomUUID();
 
   try {
-    const rows = await Promise.race([
-      getPaymentHistory(certNo),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout sau ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS)
-      ),
-    ]);
+    const rows = await withTimeout(getPaymentHistory(certNo), TIMEOUT_MS, "getPaymentHistory");
     return NextResponse.json({ success: true, data: rows });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";

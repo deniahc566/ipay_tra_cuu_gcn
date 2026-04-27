@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { appendEvent } from "@/lib/event-store";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { CERT_NO_RE } from "@/lib/vbi-api";
 
 const CANCEL_ENDPOINT =
   "https://openapi.evbi.vn/sapi/ipay-cancel-insurance-order";
@@ -31,12 +32,13 @@ function nowVN(): string {
 
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID();
-  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
   if (!session.user) {
     return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
   }
 
-  if (CANCEL_ALLOWED_EMAILS.length > 0 && !CANCEL_ALLOWED_EMAILS.includes(session.user.email)) {
+  // Fail-closed: if CANCEL_ALLOWED_EMAILS is empty, no one can cancel
+  if (!CANCEL_ALLOWED_EMAILS.includes(session.user.email)) {
     return NextResponse.json(
       { success: false, error: "Không có quyền thực hiện thao tác này." },
       { status: 403 }
@@ -65,6 +67,15 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  if (!CERT_NO_RE.test(CERT_NO)) {
+    return NextResponse.json(
+      { success: false, error: "Số chứng nhận không hợp lệ." },
+      { status: 400 }
+    );
+  }
+
+  const userAgent = req.headers.get("user-agent") ?? undefined;
 
   const payload = {
     PROCESS_CODE: "ED8FD02A-B5E4-41D6-A873-092193FC4F23",
@@ -109,9 +120,10 @@ export async function POST(req: NextRequest) {
         type: "cancel",
         email: session.user.email,
         timestamp: Date.now(),
-        certNo: CERT_NO ?? "",
+        certNo: CERT_NO,
         success: false,
         error: `HTTP ${res.status}: ${rawBody}`,
+        userAgent,
       });
       console.error(`[cancel] requestId=${requestId} HTTP error ${res.status}:`, rawBody);
       return NextResponse.json(
@@ -128,9 +140,10 @@ export async function POST(req: NextRequest) {
         type: "cancel",
         email: session.user.email,
         timestamp: Date.now(),
-        certNo: CERT_NO ?? "",
+        certNo: CERT_NO,
         success: false,
         error: errorMsg,
+        userAgent,
       });
       console.error(`[cancel] requestId=${requestId} VBI business error:`, JSON.stringify(json));
       return NextResponse.json(
@@ -145,6 +158,7 @@ export async function POST(req: NextRequest) {
       timestamp: Date.now(),
       certNo: CERT_NO,
       success: true,
+      userAgent,
     });
 
     return NextResponse.json({
@@ -160,6 +174,7 @@ export async function POST(req: NextRequest) {
       certNo: CERT_NO ?? "",
       success: false,
       error: message,
+      userAgent,
     });
     console.error(`[cancel] requestId=${requestId} fetch error:`, message);
     return NextResponse.json(

@@ -6,6 +6,7 @@ import { sessionOptions, type SessionData } from "@/lib/session";
 import { Header } from "@/components/layout/Header";
 import { PageWrapper } from "@/components/layout/PageWrapper";
 import { EventsTable } from "@/components/admin/EventsTable";
+import { appendEvent } from "@/lib/event-store";
 
 export const metadata: Metadata = {
   title: "Admin | iPay GCN",
@@ -17,14 +18,18 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .filter(Boolean);
 
 export default async function AdminPage() {
-  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
   if (!session.user) {
     redirect("/login");
   }
 
-  if (ADMIN_EMAILS.length > 0 && !ADMIN_EMAILS.includes(session.user.email)) {
+  // Fail-closed: if ADMIN_EMAILS is empty, no one gets access
+  if (!ADMIN_EMAILS.includes(session.user.email)) {
     redirect("/search");
   }
+
+  // Log admin access for compliance audit trail
+  void appendEvent({ type: "admin_view", email: session.user.email, timestamp: Date.now() });
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import type { VbiRecord } from "@/types/vbi";
 import { StatusBadge } from "./StatusBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { PaymentRecord } from "@/lib/motherduck";
+import { PROD_FEE } from "@/lib/product-config";
 
 interface ResultsTableProps {
   records: VbiRecord[];
@@ -17,13 +18,6 @@ type PaymentState =
   | { status: "loading" }
   | { status: "done"; rows: PaymentRecord[] }
   | { status: "error"; message: string };
-
-const PROD_FEE: Record<string, string> = {
-  MIX_01: "3,000 VNĐ",
-  TAPCARE: "6,000 VNĐ",
-  ISAFE_CYBER: "5,000 VNĐ",
-  VTB_HOMESAVING: "25,000 VNĐ",
-};
 
 const CANCEL_ALLOWED = (process.env.NEXT_PUBLIC_CANCEL_ALLOWED_EMAILS ?? "")
   .split(",")
@@ -128,19 +122,17 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
             const isCancelling = cancellingId === r.CERT_NO;
             const isPaymentOpen = paymentOpen[r.CERT_NO] ?? false;
             const pState = paymentState[r.CERT_NO] ?? { status: "idle" };
+            const safeGcnUrl = r.GCN && r.GCN.startsWith("https://") ? r.GCN : null;
             return (
-              <>
-                <tr
-                  key={`${r.CERT_NO}-${i}`}
-                  className="border-t border-slate-100 hover:bg-slate-50 transition-colors"
-                >
+              <Fragment key={r.CERT_NO || i}>
+                <tr className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">
                     {r.CERT_NO || "—"}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {r.GCN ? (
+                    {safeGcnUrl ? (
                       <a
-                        href={r.GCN}
+                        href={safeGcnUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[#005BAC] hover:text-[#004a91] font-medium"
@@ -205,7 +197,7 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
                   </td>
                 </tr>
                 {isPaymentOpen && (
-                  <tr key={`${r.CERT_NO}-payment`} className="bg-slate-50 border-t border-slate-100">
+                  <tr className="bg-slate-50 border-t border-slate-100">
                     <td colSpan={9} className="px-6 py-3">
                       {pState.status === "loading" && (
                         <p className="text-xs text-slate-500 py-1">Đang tải lịch sử thu phí…</p>
@@ -246,7 +238,7 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
                   </tr>
                 )}
                 {rowError[r.CERT_NO] && (
-                  <tr key={`${r.CERT_NO}-err`} className="bg-red-50">
+                  <tr className="bg-red-50">
                     <td colSpan={9} className="px-4 py-2">
                       <div className="flex items-start gap-2">
                         <pre className="flex-1 text-xs text-red-600 whitespace-pre-wrap font-mono break-all">
@@ -265,7 +257,7 @@ export function ResultsTable({ records, onCancelSuccess, userEmail }: ResultsTab
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>

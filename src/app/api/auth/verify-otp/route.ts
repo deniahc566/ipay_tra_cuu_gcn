@@ -16,11 +16,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const userAgent = req.headers.get("user-agent") ?? undefined;
+
   let payload: { email: string; otp: string };
   try {
     payload = await verifyOtpToken(otpCookie);
   } catch {
-    void appendEvent({ type: "login_failed", email: "unknown", timestamp: Date.now(), reason: "OTP_EXPIRED" });
+    void appendEvent({ type: "login_failed", email: "unknown", timestamp: Date.now(), reason: "OTP_EXPIRED", userAgent });
     return NextResponse.json(
       { success: false, error: "Phiên xác thực không tồn tại hoặc đã hết hạn." },
       { status: 401 }
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
   const match = a.length === b.length && timingSafeEqual(a, b);
 
   if (!match) {
-    void appendEvent({ type: "login_failed", email: payload.email, timestamp: Date.now(), reason: "OTP_MISMATCH" });
+    void appendEvent({ type: "login_failed", email: payload.email, timestamp: Date.now(), reason: "OTP_MISMATCH", userAgent });
     return NextResponse.json(
       { success: false, error: "Mã OTP không đúng." },
       { status: 401 }
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Create iron-session via cookies() so Set-Cookie is properly handled by Next.js
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
   session.user = { email: payload.email, loginAt: Date.now() };
   await session.save();
@@ -81,6 +83,6 @@ export async function POST(req: NextRequest) {
     path: "/",
   });
 
-  void appendEvent({ type: "login_success", email: payload.email, timestamp: Date.now() });
+  void appendEvent({ type: "login_success", email: payload.email, timestamp: Date.now(), userAgent });
   return NextResponse.json({ success: true });
 }

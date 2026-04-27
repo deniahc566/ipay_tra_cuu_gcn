@@ -16,23 +16,27 @@ vi.mock("next/headers", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 199, retryAfterSec: 0 }),
 }));
-vi.mock("@/lib/vbi-api", () => ({
-  vbiApiLookup: vi.fn().mockResolvedValue([
-    {
-      CERT_NO: "VBI-001",
-      GCN: "GCN-001",
-      TEN_KH: "Nguyễn Văn A",
-      PROD_CODE: "",
-      CAT_CODE: "",
-      BOOKING_CODE: "",
-      ORG_SALES: "VIETINBANK",
-      EFF_DATE: "01/01/2024",
-      CANCEL_DATE: "",
-      CANCEL_REASON: "",
-      STATUS: "ACTIVE",
-    },
-  ]),
-}));
+vi.mock("@/lib/vbi-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/vbi-api")>();
+  return {
+    ...actual,
+    vbiApiLookup: vi.fn().mockResolvedValue([
+      {
+        CERT_NO: "VBI-001",
+        GCN: "GCN-001",
+        TEN_KH: "Nguyễn Văn A",
+        PROD_CODE: "",
+        CAT_CODE: "",
+        BOOKING_CODE: "",
+        ORG_SALES: "VIETINBANK",
+        EFF_DATE: "01/01/2024",
+        CANCEL_DATE: "",
+        CANCEL_REASON: "",
+        STATUS: "ACTIVE",
+      },
+    ]),
+  };
+});
 vi.mock("@/lib/event-store", () => ({
   appendEvent: vi.fn().mockResolvedValue(undefined),
 }));

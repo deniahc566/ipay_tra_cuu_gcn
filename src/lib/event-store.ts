@@ -1,6 +1,14 @@
 import { getStore } from "@netlify/blobs";
 import crypto from "crypto";
-import type { AuditEvent, LoginSuccessEvent, LoginFailedEvent, LogoutEvent, LookupEvent, CancelEvent } from "@/types/audit";
+import type {
+  AuditEvent,
+  LoginSuccessEvent,
+  LoginFailedEvent,
+  LogoutEvent,
+  LookupEvent,
+  CancelEvent,
+  AdminViewEvent,
+} from "@/types/audit";
 
 // Distributive Omit so each union member loses "id" independently
 type AppendableEvent =
@@ -8,12 +16,40 @@ type AppendableEvent =
   | Omit<LoginFailedEvent, "id">
   | Omit<LogoutEvent, "id">
   | Omit<LookupEvent, "id">
-  | Omit<CancelEvent, "id">;
+  | Omit<CancelEvent, "id">
+  | Omit<AdminViewEvent, "id">;
 
 function blobsAvailable(): boolean {
   // NETLIFY_BLOBS_CONTEXT is injected by Netlify only when Blobs is enabled for the site.
   // NETLIFY alone is not sufficient — it is always true in any Netlify environment.
   return !!process.env.NETLIFY_BLOBS_CONTEXT;
+}
+
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  // Suppress unhandled-rejection warnings on the timeout promise itself
+  timeoutPromise.catch(() => {});
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
+async function setJsonWithRetry(
+  store: ReturnType<typeof getStore>,
+  key: string,
+  data: unknown,
+  maxRetries = 2
+): Promise<void> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await store.setJSON(key, data);
+      return;
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+    }
+  }
 }
 
 export async function appendEvent(event: AppendableEvent): Promise<void> {
@@ -28,32 +64,26 @@ export async function appendEvent(event: AppendableEvent): Promise<void> {
       .toISOString()
       .replace(/[:.]/g, "-");
     const key = `events/${isoKey}-${full.id}`;
-    await store.setJSON(key, full);
+    await setJsonWithRetry(store, key, full);
   } catch {
     console.log("[audit]", JSON.stringify(full));
   }
 }
 
-async function fetchInBatches<T>(
-  items: Array<() => Promise<T>>,
-  batchSize = 20,
-): Promise<T[]> {
-  const results: T[] = [];
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = await Promise.all(items.slice(i, i + batchSize).map((fn) => fn()));
-    results.push(...batch);
-  }
-  return results;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  // Suppress unhandled-rejection warnings on the timeout promise itself
-  timeoutPromise.catch(() => {});
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+/** Exhaust all cursor pages from Netlify Blobs list. */
+async function listAllBlobs(
+  store: ReturnType<typeof getStore>,
+  prefix: string
+): Promise<{ key: string }[]> {
+  const all: { key: string }[] = [];
+  let cursor: string | undefined;
+  do {
+    const result = await store.list({ prefix, ...(cursor ? { cursor } : {}) });
+    all.push(...result.blobs);
+    // @ts-expect-error — cursor field exists in Netlify Blobs v10 but is not in the type declarations
+    cursor = result.cursor as string | undefined;
+  } while (cursor);
+  return all;
 }
 
 export async function getRecentEvents(opts?: {
@@ -73,15 +103,15 @@ export async function getRecentEvents(opts?: {
     const fromKey = `events/${new Date(from).toISOString().replace(/[:.]/g, "-")}`;
     const toKey   = `events/${new Date(to + 86_400_000).toISOString().replace(/[:.]/g, "-")}`;
 
-    // Non-paginated list — abort after 5 s to prevent function from hanging when
+    // Paginate through all blobs; abort after 10 s to prevent hanging when
     // Blobs is misconfigured and the underlying HTTP call never resolves.
-    const { blobs } = await withTimeout(
-      store.list({ prefix: "events/" }),
-      5000,
+    const allBlobs = await withTimeout(
+      listAllBlobs(store, "events/"),
+      10_000,
       "store.list"
     );
 
-    const inRange = blobs.filter((b) => b.key >= fromKey && b.key <= toKey);
+    const inRange = allBlobs.filter((b) => b.key >= fromKey && b.key <= toKey);
 
     // Fetch matched blobs in batches of 20 to avoid OOM / connection exhaustion
     const events = (
@@ -96,4 +126,34 @@ export async function getRecentEvents(opts?: {
     console.error("[event-store] getRecentEvents error:", err);
     return [];
   }
+}
+
+async function fetchInBatches<T>(
+  items: Array<() => Promise<T>>,
+  batchSize = 20,
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = await Promise.all(items.slice(i, i + batchSize).map((fn) => fn()));
+    results.push(...batch);
+  }
+  return results;
+}
+
+/** Delete audit blobs older than `olderThanDays` days. Returns count deleted. */
+export async function deleteOldEvents(olderThanDays = 365): Promise<number> {
+  if (!blobsAvailable()) return 0;
+  const store = getStore("audit");
+  const cutoff = Date.now() - olderThanDays * 86_400_000;
+  const cutoffKey = `events/${new Date(cutoff).toISOString().replace(/[:.]/g, "-")}`;
+
+  const allBlobs = await withTimeout(listAllBlobs(store, "events/"), 30_000, "deleteOldEvents.list");
+  const toDelete = allBlobs.filter((b) => b.key < cutoffKey);
+
+  await fetchInBatches(
+    toDelete.map((b) => () => store.delete(b.key)),
+    20,
+  );
+
+  return toDelete.length;
 }

@@ -20,4 +20,9 @@
     Referrer-Policy           = "strict-origin-when-cross-origin"
     Permissions-Policy        = "camera=(), microphone=(), geolocation=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+    # NOTE: 'unsafe-eval' is required by Next.js 14's webpack runtime and styled-jsx.
+    # It cannot be removed without upstream changes to the framework.
+    # 'unsafe-inline' is required for Next.js inline scripts and styles.
+    # These are known limitations; frame-ancestors 'none' and other directives still
+    # restrict the highest-impact XSS vectors.
     Content-Security-Policy   = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"

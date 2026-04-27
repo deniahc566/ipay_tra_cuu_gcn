@@ -45,7 +45,15 @@ export async function getPaymentHistory(certNo: string): Promise<PaymentRecord[]
 
   const db = await getInstance();
 
-  const conn = await db.connect();
+  let conn: Awaited<ReturnType<typeof db.connect>>;
+  try {
+    conn = await db.connect();
+  } catch (err) {
+    // Stale instance — force reconnect on the next request
+    instance = null;
+    throw err;
+  }
+
   try {
     // Parameterized query — certNo is bound as a typed VARCHAR value,
     // never interpolated into the SQL string, making injection structurally impossible.

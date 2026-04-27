@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function SearchPage() {
-  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
 
   if (!session.user) {
     redirect("/login");

@@ -1,4 +1,4 @@
-export type AuditEventType = "login_success" | "login_failed" | "logout" | "lookup" | "cancel";
+export type AuditEventType = "login_success" | "login_failed" | "logout" | "lookup" | "cancel" | "admin_view";
 
 interface BaseEvent {
   id: string;
@@ -6,6 +6,7 @@ interface BaseEvent {
   email: string;
   timestamp: number;
   requestId?: string;
+  userAgent?: string;
 }
 
 export interface LoginSuccessEvent extends BaseEvent {
@@ -42,9 +43,14 @@ export interface CancelEvent extends BaseEvent {
   error?: string;
 }
 
+export interface AdminViewEvent extends BaseEvent {
+  type: "admin_view";
+}
+
 export type AuditEvent =
   | LoginSuccessEvent
   | LoginFailedEvent
   | LogoutEvent
   | LookupEvent
-  | CancelEvent;
+  | CancelEvent
+  | AdminViewEvent;

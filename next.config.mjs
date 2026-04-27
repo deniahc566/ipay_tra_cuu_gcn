@@ -19,9 +19,7 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
-  experimental: {
-    serverComponentsExternalPackages: ["@duckdb/node-api", "@duckdb/node-bindings"],
-  },
+  serverExternalPackages: ["@duckdb/node-api", "@duckdb/node-bindings"],
   async headers() {
     return [
       {

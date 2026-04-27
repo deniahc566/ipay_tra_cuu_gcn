@@ -3,14 +3,9 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { sessionOptions, type SessionData } from "@/lib/session";
-import { vbiApiLookup, type VbiLookupInput } from "@/lib/vbi-api";
+import { vbiApiLookup, type VbiLookupInput, PHONE_RE, IDCARD_RE, CERT_NO_RE, ACCOUNT_NO_RE } from "@/lib/vbi-api";
 import { appendEvent } from "@/lib/event-store";
 import { checkRateLimit } from "@/lib/rate-limit";
-
-const PHONE_RE = /^[0-9]{9,11}$/;
-const IDCARD_RE = /^[0-9]{9,12}$/;
-const CERT_NO_RE = /^[a-zA-Z0-9\-\/]{1,50}$/;
-const ACCOUNT_NO_RE = /^[0-9]{6,20}$/;
 
 function hashField(value: string): string {
   if (!value) return "";
@@ -19,7 +14,7 @@ function hashField(value: string): string {
 
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID();
-  const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+  const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
 
   if (!session.user) {
     return NextResponse.json(
@@ -74,6 +69,7 @@ export async function POST(req: NextRequest) {
 
   const timestamp = Date.now();
   const email = session.user.email;
+  const userAgent = req.headers.get("user-agent") ?? undefined;
   // Hash PII before storing in audit log — use first 8 hex chars of sha256 for correlation without reversal
   const criteria = {
     CERT_NO_hash: hashField(CERT_NO),
@@ -84,14 +80,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const records = await vbiApiLookup({ CERT_NO, ACCOUNT_NO, IDCARD, PHONE_NUMBER });
-    void appendEvent({ type: "lookup", email, timestamp, requestId, criteria, resultCount: records.length, success: true });
+    void appendEvent({ type: "lookup", email, timestamp, requestId, criteria, resultCount: records.length, success: true, userAgent });
     return NextResponse.json(
       { success: true, data: records },
       { headers: { "X-Request-ID": requestId } }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
-    void appendEvent({ type: "lookup", email, timestamp, requestId, criteria, resultCount: 0, success: false, error: `[${requestId}] VBI error` });
+    void appendEvent({ type: "lookup", email, timestamp, requestId, criteria, resultCount: 0, success: false, error: `[${requestId}] VBI error`, userAgent });
     console.error(`[lookup] requestId=${requestId}`, message);
     return NextResponse.json(
       { success: false, error: `Lỗi kết nối đến hệ thống VBI. Mã lỗi: ${requestId}` },

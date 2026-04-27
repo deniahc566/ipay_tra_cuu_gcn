@@ -2,24 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, type SessionData } from "@/lib/session";
 
-/**
- * Fail-safe auth enforcement. Each route still performs its own session check
- * (defense-in-depth). This middleware ensures any future route added without
- * an explicit auth check is protected by default.
- *
- * Public paths excluded by the matcher below:
- *   /login        — login page
- *   /api/auth/*   — OTP request, verify, logout
- *   /_next/*      — Next.js internals
- *   /favicon.ico
- */
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon\\.ico|login|api/auth/).*)",
   ],
 };
 
-export async function middleware(req: NextRequest): Promise<NextResponse> {
+export async function proxy(req: NextRequest): Promise<NextResponse> {
   const res = NextResponse.next();
 
   let session: SessionData;

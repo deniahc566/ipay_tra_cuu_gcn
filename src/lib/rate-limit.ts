@@ -21,8 +21,6 @@ export function getClientIP(req: NextRequest): string {
   return "unknown";
 }
 
-const CAS_MAX_RETRIES = 3;
-
 export async function checkRateLimit(
   key: string,
   limit: number,
@@ -39,55 +37,30 @@ export async function checkRateLimit(
 
   const now = Date.now();
 
-  for (let attempt = 0; attempt < CAS_MAX_RETRIES; attempt++) {
-    let currentEntry: RateLimitEntry = { count: 0, windowStart: now };
-    let currentEtag: string | undefined;
+  try {
+    const result = await store.getWithMetadata(key, { type: "json" });
 
-    try {
-      const result = await store.getWithMetadata(key, { type: "json" });
-      if (result !== null) {
-        const stored = result.data as RateLimitEntry | null;
-        if (stored && now - stored.windowStart < windowMs) {
-          currentEntry = stored;
-        }
-        currentEtag = result.etag;
+    let entry: RateLimitEntry = { count: 0, windowStart: now };
+    if (result !== null) {
+      const stored = result.data as RateLimitEntry | null;
+      if (stored && now - stored.windowStart < windowMs) {
+        entry = stored;
       }
-    } catch {
-      if (failOpen) return { allowed: true, remaining: limit, retryAfterSec: 0 };
-      return { allowed: false, remaining: 0, retryAfterSec: 60 };
     }
 
-    const newCount = currentEntry.count + 1;
-    const windowEnd = currentEntry.windowStart + windowMs;
-    const newEntry: RateLimitEntry = {
-      count: newCount,
-      windowStart: currentEntry.windowStart,
+    const newCount = entry.count + 1;
+    const windowEnd = entry.windowStart + windowMs;
+    const newEntry: RateLimitEntry = { count: newCount, windowStart: entry.windowStart };
+
+    await store.setJSON(key, newEntry);
+
+    return {
+      allowed: newCount <= limit,
+      remaining: Math.max(0, limit - newCount),
+      retryAfterSec: Math.ceil((windowEnd - now) / 1000),
     };
-
-    try {
-      const writeOptions =
-        currentEtag !== undefined
-          ? { onlyIfMatch: currentEtag }   // key exists — only write if etag still matches
-          : { onlyIfNew: true as const };  // key is new — only write if still absent
-
-      const writeResult = await store.setJSON(key, newEntry, writeOptions);
-
-      if (!writeResult.modified) {
-        // Another concurrent request wrote first — retry with fresh read
-        continue;
-      }
-
-      return {
-        allowed: newCount <= limit,
-        remaining: Math.max(0, limit - newCount),
-        retryAfterSec: Math.ceil((windowEnd - now) / 1000),
-      };
-    } catch {
-      continue;
-    }
+  } catch {
+    if (failOpen) return { allowed: true, remaining: limit, retryAfterSec: 0 };
+    return { allowed: false, remaining: 0, retryAfterSec: 60 };
   }
-
-  // All CAS retries exhausted under contention
-  if (failOpen) return { allowed: true, remaining: 0, retryAfterSec: 0 };
-  return { allowed: false, remaining: 0, retryAfterSec: 60 };
 }

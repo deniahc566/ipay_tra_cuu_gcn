@@ -14,13 +14,14 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getIronSession<SessionData>(cookies(), sessionOptions);
+    const session = await getIronSession<SessionData>(await cookies(), sessionOptions);
 
     if (!session.user) {
       return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
     }
 
-    if (ADMIN_EMAILS.length > 0 && !ADMIN_EMAILS.includes(session.user.email)) {
+    // Fail-closed: if ADMIN_EMAILS is empty, no one gets access
+    if (!ADMIN_EMAILS.includes(session.user.email)) {
       return NextResponse.json({ success: false, error: "Không có quyền truy cập." }, { status: 403 });
     }
 
@@ -58,6 +59,8 @@ export async function GET(req: NextRequest) {
       events = events.filter((e) => e.email.toLowerCase() === emailFilter);
     }
 
+    // admin_view events are stored for compliance but excluded from the UI listing
+    // to avoid infinite-loop noise (every fetch would add more admin_view entries).
     const logins = events.filter(
       (e): e is LoginSuccessEvent | LoginFailedEvent | LogoutEvent =>
         e.type === "login_success" || e.type === "login_failed" || e.type === "logout"

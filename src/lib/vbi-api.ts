@@ -10,10 +10,10 @@ export interface VbiLookupInput {
   PHONE_NUMBER: string;
 }
 
-const PHONE_RE = /^[0-9]{9,11}$/;
-const IDCARD_RE = /^[0-9]{9,12}$/;
-const CERT_NO_RE = /^[a-zA-Z0-9\-\/]{1,50}$/;
-const ACCOUNT_NO_RE = /^[0-9]{6,20}$/;
+export const PHONE_RE = /^[0-9]{9,11}$/;
+export const IDCARD_RE = /^[0-9]{9,12}$/;
+export const CERT_NO_RE = /^[a-zA-Z0-9\-\/]{1,50}$/;
+export const ACCOUNT_NO_RE = /^[0-9]{6,20}$/;
 
 /** Validate non-empty fields against expected formats before sending to VBI */
 function validateInput(input: VbiLookupInput): void {
@@ -69,17 +69,27 @@ export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> 
 
   const raw: Record<string, string>[] = json.data?.cur_list_0 ?? [];
 
-  return raw.map((r) => ({
-    CERT_NO: r["CERT_NO"] ?? "",
-    GCN: r["GCN"] ?? "",
-    TEN_KH: r["Tên Khách hàng"] ?? "",
-    PROD_CODE: r["PROD_CODE"] ?? "",
-    CAT_CODE: r["CAT_CODE"] ?? "",
-    BOOKING_CODE: r["BOOKING_CODE"] ?? "",
-    ORG_SALES: r["ORG_SALES"] ?? "",
-    EFF_DATE: r["Ngày hiệu lực"] ?? "",
-    CANCEL_DATE: r["Ngày hủy đơn"] ?? "",
-    CANCEL_REASON: r["Lý do hủy"] ?? "",
-    STATUS: r["STATUS"] ?? "",
-  }));
+  if (!Array.isArray(raw)) {
+    console.warn("[vbi-api] Unexpected response shape — cur_list_0 is not an array:", typeof raw);
+    return [];
+  }
+
+  return raw.map((r) => {
+    if (!r["Tên Khách hàng"] && !r["CERT_NO"]) {
+      console.warn("[vbi-api] Record missing expected fields:", Object.keys(r));
+    }
+    return {
+      CERT_NO: r["CERT_NO"] ?? "",
+      GCN: r["GCN"] ?? "",
+      TEN_KH: r["Tên Khách hàng"] ?? "",
+      PROD_CODE: r["PROD_CODE"] ?? "",
+      CAT_CODE: r["CAT_CODE"] ?? "",
+      BOOKING_CODE: r["BOOKING_CODE"] ?? "",
+      ORG_SALES: r["ORG_SALES"] ?? "",
+      EFF_DATE: r["Ngày hiệu lực"] ?? "",
+      CANCEL_DATE: r["Ngày hủy đơn"] ?? "",
+      CANCEL_REASON: r["Lý do hủy"] ?? "",
+      STATUS: r["STATUS"] ?? "",
+    };
+  });
 }
