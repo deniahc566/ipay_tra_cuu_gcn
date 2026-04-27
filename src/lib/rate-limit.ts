@@ -27,6 +27,12 @@ export async function checkRateLimit(
   windowMs: number,
   failOpen = false
 ): Promise<{ allowed: boolean; remaining: number; retryAfterSec: number }> {
+  // Netlify Blobs requires a runtime context that only exists in Netlify functions.
+  // Skip rate limiting in development so local testing is not blocked.
+  if (process.env.NODE_ENV !== "production") {
+    return { allowed: true, remaining: limit, retryAfterSec: 0 };
+  }
+
   let store: ReturnType<typeof getStore>;
   try {
     store = getStore("ratelimit");

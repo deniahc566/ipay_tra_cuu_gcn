@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
 // Must be declared before vi.mock (vi.mock is hoisted but the fn ref is stable)
@@ -51,8 +51,13 @@ describe("getClientIP", () => {
 describe("checkRateLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NODE_ENV", "production");
     mockStore.getWithMetadata.mockResolvedValue(null);
     mockStore.setJSON.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("allows first request (count=1, limit=5)", async () => {
