@@ -127,11 +127,13 @@ export async function getRecentEvents(opts?: {
 
     const inRange = allBlobs.filter((b) => b.key >= fromKey && b.key <= toKey);
 
-    // Fetch matched blobs in batches of 20 to avoid OOM / connection exhaustion
+    // Fetch event content in batches of 50 concurrent requests.
+    // 50 parallel GETs per batch keeps sequential roundtrips low (~9 batches
+    // for 430 events) while staying within Netlify Blobs concurrency limits.
     const events = (
       await fetchInBatches(
         inRange.map((b) => () => store.get(b.key, { type: "json" }) as Promise<AuditEvent>),
-        20,
+        50,
       )
     ).filter((e): e is AuditEvent => !!e);
 
