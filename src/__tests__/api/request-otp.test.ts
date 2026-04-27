@@ -45,11 +45,13 @@ describe("POST /api/auth/request-otp", () => {
     expect(body.error).toMatch(/Email/i);
   });
 
-  it("returns 403 when email domain is not allowed", async () => {
+  it("returns generic 200 when email domain is not allowed (anti-enumeration)", async () => {
+    // The route deliberately returns the same 200 response for disallowed domains
+    // so callers cannot distinguish "not on allowlist" from "OTP sent".
     const res = await POST(makeRequest({ email: "user@gmail.com" }));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(false);
+    expect(body.success).toBe(true);
   });
 
   it("returns 429 when rate limit exceeded", async () => {

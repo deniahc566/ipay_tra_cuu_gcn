@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
+import crypto from "crypto";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { appendEvent } from "@/lib/event-store";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -29,6 +30,7 @@ function nowVN(): string {
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
   const session = await getIronSession<SessionData>(cookies(), sessionOptions);
   if (!session.user) {
     return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
@@ -111,8 +113,9 @@ export async function POST(req: NextRequest) {
         success: false,
         error: `HTTP ${res.status}: ${rawBody}`,
       });
+      console.error(`[cancel] requestId=${requestId} HTTP error ${res.status}:`, rawBody);
       return NextResponse.json(
-        { success: false, rawResponse: `HTTP ${res.status}:\n${rawBody}` },
+        { success: false, error: `Lỗi kết nối VBI. Mã lỗi: ${requestId}` },
         { status: 502 }
       );
     }
@@ -129,8 +132,9 @@ export async function POST(req: NextRequest) {
         success: false,
         error: errorMsg,
       });
+      console.error(`[cancel] requestId=${requestId} VBI business error:`, JSON.stringify(json));
       return NextResponse.json(
-        { success: false, rawResponse: JSON.stringify(json, null, 2) },
+        { success: false, error: `Lỗi từ VBI. Mã lỗi: ${requestId}` },
         { status: 502 }
       );
     }
@@ -157,8 +161,9 @@ export async function POST(req: NextRequest) {
       success: false,
       error: message,
     });
+    console.error(`[cancel] requestId=${requestId} fetch error:`, message);
     return NextResponse.json(
-      { success: false, rawResponse: message },
+      { success: false, error: `Lỗi kết nối VBI. Mã lỗi: ${requestId}` },
       { status: 502 }
     );
   }

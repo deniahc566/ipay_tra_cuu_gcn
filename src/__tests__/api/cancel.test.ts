@@ -66,7 +66,8 @@ describe("POST /api/insurance/cancel", () => {
     expect(vi.mocked(checkRateLimit)).toHaveBeenCalledWith(
       "cancel:cancel@vbi.com.vn",
       200,
-      60 * 60 * 1000
+      60 * 60 * 1000,
+      true  // failOpen — cancel is post-auth; Blobs unavailability must not block users
     );
   });
 

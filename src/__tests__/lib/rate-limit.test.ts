@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 // Must be declared before vi.mock (vi.mock is hoisted but the fn ref is stable)
 const mockStore = {
-  get: vi.fn(),
+  getWithMetadata: vi.fn(),
   setJSON: vi.fn(),
 };
 
@@ -23,6 +23,7 @@ describe("getClientIP", () => {
   });
 
   it("falls back to x-forwarded-for first IP", () => {
+    // NODE_ENV is "test" in vitest, so the x-forwarded-for fallback is active
     const req = new NextRequest("http://localhost/test", {
       headers: { "x-forwarded-for": "5.6.7.8, 10.0.0.1" },
     });
@@ -33,30 +34,51 @@ describe("getClientIP", () => {
     const req = new NextRequest("http://localhost/test");
     expect(getClientIP(req)).toBe("unknown");
   });
+
+  it("returns 'unknown' for x-forwarded-for in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const req = new NextRequest("http://localhost/test", {
+        headers: { "x-forwarded-for": "5.6.7.8" },
+      });
+      expect(getClientIP(req)).toBe("unknown");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("checkRateLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockStore.setJSON.mockResolvedValue(undefined);
+    mockStore.getWithMetadata.mockResolvedValue(null);
+    mockStore.setJSON.mockResolvedValue({ modified: true, etag: "test-etag" });
   });
 
   it("allows first request (count=1, limit=5)", async () => {
-    mockStore.get.mockResolvedValue(null); // no prior entry
+    mockStore.getWithMetadata.mockResolvedValue(null); // no prior entry
     const result = await checkRateLimit("test-key", 5, 60_000);
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(4);
   });
 
   it("allows request at the limit boundary", async () => {
-    mockStore.get.mockResolvedValue({ count: 4, windowStart: Date.now() - 1000 });
+    mockStore.getWithMetadata.mockResolvedValue({
+      data: { count: 4, windowStart: Date.now() - 1000 },
+      etag: "test-etag",
+      metadata: {},
+    });
     const result = await checkRateLimit("test-key", 5, 60_000);
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(0);
   });
 
   it("blocks request over the limit", async () => {
-    mockStore.get.mockResolvedValue({ count: 5, windowStart: Date.now() - 1000 });
+    mockStore.getWithMetadata.mockResolvedValue({
+      data: { count: 5, windowStart: Date.now() - 1000 },
+      etag: "test-etag",
+      metadata: {},
+    });
     const result = await checkRateLimit("test-key", 5, 60_000);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
@@ -65,7 +87,11 @@ describe("checkRateLimit", () => {
 
   it("resets count when window has expired", async () => {
     // windowStart is 2 minutes ago, windowMs is 60s → expired
-    mockStore.get.mockResolvedValue({ count: 99, windowStart: Date.now() - 120_000 });
+    mockStore.getWithMetadata.mockResolvedValue({
+      data: { count: 99, windowStart: Date.now() - 120_000 },
+      etag: "test-etag",
+      metadata: {},
+    });
     const result = await checkRateLimit("test-key", 5, 60_000);
     // Old entry ignored (window expired), fresh entry count=1
     expect(result.allowed).toBe(true);
@@ -73,19 +99,56 @@ describe("checkRateLimit", () => {
   });
 
   it("FAIL-CLOSED: blocks request when Blobs throws", async () => {
-    mockStore.get.mockRejectedValue(new Error("Blob storage unavailable"));
+    mockStore.getWithMetadata.mockRejectedValue(new Error("Blob storage unavailable"));
     const result = await checkRateLimit("test-key", 5, 60_000);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
     expect(result.retryAfterSec).toBe(60);
   });
 
-  it("persists updated count to store", async () => {
-    mockStore.get.mockResolvedValue({ count: 2, windowStart: Date.now() - 1000 });
+  it("persists updated count to store with CAS etag", async () => {
+    mockStore.getWithMetadata.mockResolvedValue({
+      data: { count: 2, windowStart: Date.now() - 1000 },
+      etag: "test-etag",
+      metadata: {},
+    });
     await checkRateLimit("test-key", 5, 60_000);
     expect(mockStore.setJSON).toHaveBeenCalledWith(
       "test-key",
-      expect.objectContaining({ count: 3 })
+      expect.objectContaining({ count: 3 }),
+      expect.objectContaining({ onlyIfMatch: "test-etag" })
+    );
+  });
+
+  it("retries on CAS conflict (modified: false) and succeeds on second attempt", async () => {
+    mockStore.getWithMetadata.mockResolvedValue({
+      data: { count: 1, windowStart: Date.now() - 1000 },
+      etag: "test-etag",
+      metadata: {},
+    });
+    // First write is rejected (conflict), second succeeds
+    mockStore.setJSON
+      .mockResolvedValueOnce({ modified: false })
+      .mockResolvedValueOnce({ modified: true, etag: "new-etag" });
+
+    const result = await checkRateLimit("test-key", 5, 60_000);
+    expect(result.allowed).toBe(true);
+    expect(mockStore.setJSON).toHaveBeenCalledTimes(2);
+  });
+
+  it("FAIL-OPEN: allows request when Blobs throws and failOpen=true", async () => {
+    mockStore.getWithMetadata.mockRejectedValue(new Error("Blob storage unavailable"));
+    const result = await checkRateLimit("test-key", 5, 60_000, true);
+    expect(result.allowed).toBe(true);
+  });
+
+  it("uses onlyIfNew when no prior entry exists", async () => {
+    mockStore.getWithMetadata.mockResolvedValue(null);
+    await checkRateLimit("test-key", 5, 60_000);
+    expect(mockStore.setJSON).toHaveBeenCalledWith(
+      "test-key",
+      expect.objectContaining({ count: 1 }),
+      expect.objectContaining({ onlyIfNew: true })
     );
   });
 });

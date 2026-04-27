@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockStore = {
   get: vi.fn(),
@@ -29,7 +29,12 @@ const BASE_LOOKUP_EVENT = {
 describe("appendEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NETLIFY_BLOBS_CONTEXT", "1");
     mockStore.setJSON.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("stores event to Blobs with correct key prefix", async () => {
@@ -82,45 +87,65 @@ describe("appendEvent", () => {
   });
 });
 
+// Reproduce the key format used by appendEvent and getRecentEvents
+function makeKey(ts: number) {
+  return `events/${new Date(ts).toISOString().replace(/[:.]/g, "-")}-test-id`;
+}
+
 describe("getRecentEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NETLIFY_BLOBS_CONTEXT", "1");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("returns events within the cutoff window", async () => {
-    const recent = { ...BASE_LOOKUP_EVENT, id: "1", timestamp: Date.now() - 1000 };
-    const old = { ...BASE_LOOKUP_EVENT, id: "2", timestamp: Date.now() - 10 * 86_400_000 };
-    mockStore.list.mockResolvedValue({ blobs: [{ key: "events/a" }, { key: "events/b" }] });
-    mockStore.get
-      .mockResolvedValueOnce(recent)
-      .mockResolvedValueOnce(old);
+    const recentTs = Date.now() - 1000;
+    const oldTs = Date.now() - 10 * 86_400_000; // 10 days ago — outside 7-day default window
+    const recent = { ...BASE_LOOKUP_EVENT, id: "1", timestamp: recentTs };
+    mockStore.list.mockResolvedValue({
+      blobs: [{ key: makeKey(recentTs) }, { key: makeKey(oldTs) }],
+    });
+    // Only the recent key passes the date-range filter; get is called once
+    mockStore.get.mockResolvedValueOnce(recent);
 
-    const events = await getRecentEvents(7);
+    const events = await getRecentEvents();
     expect(events).toHaveLength(1);
     expect(events[0].id).toBe("1");
   });
 
   it("returns sorted descending by timestamp", async () => {
-    const older = { ...BASE_LOOKUP_EVENT, id: "old", timestamp: Date.now() - 5000 };
-    const newer = { ...BASE_LOOKUP_EVENT, id: "new", timestamp: Date.now() - 1000 };
-    mockStore.list.mockResolvedValue({ blobs: [{ key: "events/a" }, { key: "events/b" }] });
+    const olderTs = Date.now() - 5000;
+    const newerTs = Date.now() - 1000;
+    const older = { ...BASE_LOOKUP_EVENT, id: "old", timestamp: olderTs };
+    const newer = { ...BASE_LOOKUP_EVENT, id: "new", timestamp: newerTs };
+    mockStore.list.mockResolvedValue({
+      blobs: [{ key: makeKey(olderTs) }, { key: makeKey(newerTs) }],
+    });
     mockStore.get.mockResolvedValueOnce(older).mockResolvedValueOnce(newer);
 
-    const events = await getRecentEvents(7);
+    const events = await getRecentEvents();
     expect(events[0].id).toBe("new");
     expect(events[1].id).toBe("old");
   });
 
   it("returns empty array when Blobs throws", async () => {
     mockStore.list.mockRejectedValue(new Error("Blob unavailable"));
-    const events = await getRecentEvents(7);
+    const events = await getRecentEvents();
     expect(events).toEqual([]);
   });
 
   it("filters out null/undefined blobs", async () => {
-    mockStore.list.mockResolvedValue({ blobs: [{ key: "events/a" }, { key: "events/b" }] });
+    const ts1 = Date.now() - 1000;
+    const ts2 = Date.now() - 2000;
+    mockStore.list.mockResolvedValue({
+      blobs: [{ key: makeKey(ts1) }, { key: makeKey(ts2) }],
+    });
     mockStore.get.mockResolvedValueOnce(null).mockResolvedValueOnce(undefined);
-    const events = await getRecentEvents(7);
+    const events = await getRecentEvents();
     expect(events).toEqual([]);
   });
 });

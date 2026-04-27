@@ -13,11 +13,8 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .filter(Boolean);
 
 export async function GET(req: NextRequest) {
-  console.log("[admin/events] handler start");
   try {
-    console.log("[admin/events] calling getIronSession");
     const session = await getIronSession<SessionData>(cookies(), sessionOptions);
-    console.log("[admin/events] session user:", session.user?.email ?? "none");
 
     if (!session.user) {
       return NextResponse.json({ success: false, error: "Chưa đăng nhập." }, { status: 401 });
@@ -55,9 +52,7 @@ export async function GET(req: NextRequest) {
       from = to - 90 * 86_400_000;
     }
 
-    console.log("[admin/events] calling getRecentEvents, from:", new Date(from).toISOString(), "to:", new Date(to).toISOString());
     let events = await getRecentEvents({ from, to });
-    console.log("[admin/events] getRecentEvents returned", events.length, "events");
 
     if (emailFilter) {
       events = events.filter((e) => e.email.toLowerCase() === emailFilter);
@@ -77,7 +72,6 @@ export async function GET(req: NextRequest) {
       console.error("[admin/events] JSON serialization failed:", serErr);
       return NextResponse.json({ success: false, error: "Lỗi serialize dữ liệu." }, { status: 500 });
     }
-    console.log("[admin/events] sending response: logins=%d lookups=%d cancels=%d size=%dB", logins.length, lookups.length, cancels.length, body.length);
     return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (err) {
     console.error("[admin/events] unhandled error:", err);

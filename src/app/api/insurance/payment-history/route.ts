@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
+import crypto from "crypto";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { getPaymentHistory } from "@/lib/motherduck";
 
@@ -17,6 +18,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Số chứng nhận không hợp lệ." }, { status: 400 });
   }
 
+  const requestId = crypto.randomUUID();
+
   try {
     const rows = await Promise.race([
       getPaymentHistory(certNo),
@@ -27,7 +30,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: rows });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Lỗi không xác định";
-    console.error("[payment-history] error:", message);
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error(`[payment-history] requestId=${requestId} error:`, message);
+    return NextResponse.json(
+      { success: false, error: `Lỗi hệ thống. Mã lỗi: ${requestId}` },
+      { status: 500 }
+    );
   }
 }

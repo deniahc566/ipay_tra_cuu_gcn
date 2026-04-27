@@ -61,19 +61,32 @@ describe("GET /api/admin/events", () => {
     expect(body.cancels).toHaveLength(1);
   });
 
-  it("passes days param to getRecentEvents (max 30)", async () => {
-    await GET(makeRequest({ days: "14" }));
-    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(14);
+  it("passes dateFrom param as from timestamp to getRecentEvents", async () => {
+    // Use a date within the 90-day cap so it isn't clamped
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+    const dateFrom = thirtyDaysAgo.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    await GET(makeRequest({ dateFrom }));
+    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(
+      expect.objectContaining({ from: Date.parse(dateFrom) })
+    );
   });
 
-  it("clamps days param to 30 maximum", async () => {
-    await GET(makeRequest({ days: "99" }));
-    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(30);
+  it("caps date range at 90 days when range exceeds limit", async () => {
+    // 120-day range → clamped to 90 days
+    await GET(makeRequest({ dateFrom: "2024-01-01", dateTo: "2024-05-01" }));
+    const [[arg]] = vi.mocked(getRecentEvents).mock.calls as [[{ from: number; to: number }]];
+    expect(arg.to - arg.from).toBeLessThanOrEqual(90 * 86_400_000);
   });
 
-  it("defaults to 7 days when no param provided", async () => {
+  it("defaults to 7-day window when no date params provided", async () => {
     await GET(makeRequest());
-    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(7);
+    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expect.any(Number), to: expect.any(Number) })
+    );
+    const [[{ from, to }]] = vi.mocked(getRecentEvents).mock.calls as [[{ from: number; to: number }]];
+    // Default window is 7 days (±2 s tolerance for test execution time)
+    expect(to - from).toBeGreaterThan(7 * 86_400_000 - 2000);
+    expect(to - from).toBeLessThanOrEqual(7 * 86_400_000);
   });
 
   it("lookup events contain hashed criteria, not raw PII", async () => {

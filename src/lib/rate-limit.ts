@@ -7,12 +7,21 @@ interface RateLimitEntry {
 }
 
 export function getClientIP(req: NextRequest): string {
-  return (
-    req.headers.get("x-nf-client-connection-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown"
-  );
+  // x-nf-client-connection-ip is injected by Netlify's edge; cannot be spoofed.
+  const nfIp = req.headers.get("x-nf-client-connection-ip");
+  if (nfIp) return nfIp;
+
+  // In development, trust x-forwarded-for for local testing convenience.
+  // In production without the Netlify header, return "unknown" — do not accept
+  // a client-controlled header as a rate-limit key.
+  if (process.env.NODE_ENV !== "production") {
+    return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  }
+
+  return "unknown";
 }
+
+const CAS_MAX_RETRIES = 3;
 
 export async function checkRateLimit(
   key: string,
@@ -29,27 +38,56 @@ export async function checkRateLimit(
   }
 
   const now = Date.now();
-  let entry: RateLimitEntry = { count: 0, windowStart: now };
 
-  try {
-    const stored = (await store.get(key, {
-      type: "json",
-    })) as RateLimitEntry | null;
-    if (stored && now - stored.windowStart < windowMs) entry = stored;
-  } catch {
-    if (failOpen) return { allowed: true, remaining: limit, retryAfterSec: 0 };
-    // Fail-closed: if Blobs are unavailable, block the request to prevent bypass
-    return { allowed: false, remaining: 0, retryAfterSec: 60 };
+  for (let attempt = 0; attempt < CAS_MAX_RETRIES; attempt++) {
+    let currentEntry: RateLimitEntry = { count: 0, windowStart: now };
+    let currentEtag: string | undefined;
+
+    try {
+      const result = await store.getWithMetadata(key, { type: "json" });
+      if (result !== null) {
+        const stored = result.data as RateLimitEntry | null;
+        if (stored && now - stored.windowStart < windowMs) {
+          currentEntry = stored;
+        }
+        currentEtag = result.etag;
+      }
+    } catch {
+      if (failOpen) return { allowed: true, remaining: limit, retryAfterSec: 0 };
+      return { allowed: false, remaining: 0, retryAfterSec: 60 };
+    }
+
+    const newCount = currentEntry.count + 1;
+    const windowEnd = currentEntry.windowStart + windowMs;
+    const newEntry: RateLimitEntry = {
+      count: newCount,
+      windowStart: currentEntry.windowStart,
+    };
+
+    try {
+      const writeOptions =
+        currentEtag !== undefined
+          ? { onlyIfMatch: currentEtag }   // key exists — only write if etag still matches
+          : { onlyIfNew: true as const };  // key is new — only write if still absent
+
+      const writeResult = await store.setJSON(key, newEntry, writeOptions);
+
+      if (!writeResult.modified) {
+        // Another concurrent request wrote first — retry with fresh read
+        continue;
+      }
+
+      return {
+        allowed: newCount <= limit,
+        remaining: Math.max(0, limit - newCount),
+        retryAfterSec: Math.ceil((windowEnd - now) / 1000),
+      };
+    } catch {
+      continue;
+    }
   }
 
-  const newCount = entry.count + 1;
-  const windowEnd = entry.windowStart + windowMs;
-
-  void store.setJSON(key, { count: newCount, windowStart: entry.windowStart });
-
-  return {
-    allowed: newCount <= limit,
-    remaining: Math.max(0, limit - newCount),
-    retryAfterSec: Math.ceil((windowEnd - now) / 1000),
-  };
+  // All CAS retries exhausted under contention
+  if (failOpen) return { allowed: true, remaining: 0, retryAfterSec: 0 };
+  return { allowed: false, remaining: 0, retryAfterSec: 60 };
 }
