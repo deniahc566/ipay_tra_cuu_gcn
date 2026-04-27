@@ -24,7 +24,7 @@ export function LoginForm() {
         {/* Logo */}
         <div className="mb-8">
           <Image
-            src="/logo-vbi.png.webp"
+            src="/logo-vbi.webp"
             alt="VBI"
             width={300}
             height={300}

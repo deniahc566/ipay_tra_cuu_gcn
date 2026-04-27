@@ -19,7 +19,7 @@ export function Header({ email }: HeaderProps) {
     <header className="bg-white border-b border-slate-200 shadow-sm">
       <div className="max-w-[1600px] mx-auto px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Image src="/logo-vbi.png.webp" alt="VBI Logo" width={44} height={44} priority />
+          <Image src="/logo-vbi.webp" alt="VBI Logo" width={44} height={44} priority />
           <div>
             <p className="text-[#005BAC] font-bold text-sm leading-tight">Tra cứu GCN Bảo hiểm</p>
             <p className="text-slate-400 text-xs">iPay Insurance Portal</p>
