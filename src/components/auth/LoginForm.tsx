@@ -28,8 +28,8 @@ export function LoginForm() {
             alt="VBI"
             width={300}
             height={300}
-            className=""
             priority
+            unoptimized
           />
         </div>
 

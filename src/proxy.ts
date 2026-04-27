@@ -4,7 +4,7 @@ import { sessionOptions, type SessionData } from "@/lib/session";
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|login|api/auth/).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|login|api/auth/|.*\\.(?:webp|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot)).*)",
   ],
 };
 
