@@ -6,9 +6,12 @@
   package = "@netlify/plugin-nextjs"
 
 [functions]
-  # nft bundler correctly traces and includes native .node binaries (DuckDB).
+  # nft bundler is needed for native .node binaries (DuckDB).
+  # libduckdb.so is loaded via dlopen() — nft cannot auto-trace it, so we
+  # force-include the entire @duckdb tree so the .so sits next to the .node file.
   node_bundler          = "nft"
   external_node_modules = ["@duckdb/node-api", "@duckdb/node-bindings"]
+  included_files        = ["node_modules/@duckdb/**"]
 
 [build.environment]
   NODE_VERSION              = "20"
