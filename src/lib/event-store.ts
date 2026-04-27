@@ -103,11 +103,25 @@ export async function getRecentEvents(opts?: {
     const fromKey = `events/${new Date(from).toISOString().replace(/[:.]/g, "-")}`;
     const toKey   = `events/${new Date(to + 86_400_000).toISOString().replace(/[:.]/g, "-")}`;
 
-    // Paginate through all blobs; abort after 10 s to prevent hanging when
-    // Blobs is misconfigured and the underlying HTTP call never resolves.
+    // List by UTC year-month prefix instead of the entire "events/" namespace.
+    // Keys are ISO timestamps so lexicographic order === chronological order.
+    // This avoids paginating through the full event history on every admin query.
     const allBlobs = await withTimeout(
-      listAllBlobs(store, "events/"),
-      10_000,
+      (async () => {
+        const blobs: { key: string }[] = [];
+        let curYear  = new Date(from).getUTCFullYear();
+        let curMonth = new Date(from).getUTCMonth(); // 0-indexed
+        const toD      = new Date(to + 86_400_000);
+        const endYear  = toD.getUTCFullYear();
+        const endMonth = toD.getUTCMonth();
+        while (curYear < endYear || (curYear === endYear && curMonth <= endMonth)) {
+          const mm = String(curMonth + 1).padStart(2, "0");
+          blobs.push(...await listAllBlobs(store, `events/${curYear}-${mm}-`));
+          if (++curMonth > 11) { curMonth = 0; curYear++; }
+        }
+        return blobs;
+      })(),
+      15_000,
       "store.list"
     );
 

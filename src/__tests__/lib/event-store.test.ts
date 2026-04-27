@@ -102,13 +102,20 @@ describe("getRecentEvents", () => {
     vi.unstubAllEnvs();
   });
 
+  // Helper: make list() return only blobs whose key starts with the queried prefix.
+  // getRecentEvents now calls list once per UTC year-month, so the mock must be
+  // prefix-aware to avoid returning the same blob from multiple monthly calls.
+  function mockListByPrefix(keys: { key: string }[]) {
+    mockStore.list.mockImplementation(async ({ prefix }: { prefix: string }) => ({
+      blobs: keys.filter(({ key }) => key.startsWith(prefix)),
+    }));
+  }
+
   it("returns events within the cutoff window", async () => {
     const recentTs = Date.now() - 1000;
     const oldTs = Date.now() - 10 * 86_400_000; // 10 days ago — outside 7-day default window
     const recent = { ...BASE_LOOKUP_EVENT, id: "1", timestamp: recentTs };
-    mockStore.list.mockResolvedValue({
-      blobs: [{ key: makeKey(recentTs) }, { key: makeKey(oldTs) }],
-    });
+    mockListByPrefix([{ key: makeKey(recentTs) }, { key: makeKey(oldTs) }]);
     // Only the recent key passes the date-range filter; get is called once
     mockStore.get.mockResolvedValueOnce(recent);
 
@@ -122,9 +129,7 @@ describe("getRecentEvents", () => {
     const newerTs = Date.now() - 1000;
     const older = { ...BASE_LOOKUP_EVENT, id: "old", timestamp: olderTs };
     const newer = { ...BASE_LOOKUP_EVENT, id: "new", timestamp: newerTs };
-    mockStore.list.mockResolvedValue({
-      blobs: [{ key: makeKey(olderTs) }, { key: makeKey(newerTs) }],
-    });
+    mockListByPrefix([{ key: makeKey(olderTs) }, { key: makeKey(newerTs) }]);
     mockStore.get.mockResolvedValueOnce(older).mockResolvedValueOnce(newer);
 
     const events = await getRecentEvents();
@@ -141,9 +146,7 @@ describe("getRecentEvents", () => {
   it("filters out null/undefined blobs", async () => {
     const ts1 = Date.now() - 1000;
     const ts2 = Date.now() - 2000;
-    mockStore.list.mockResolvedValue({
-      blobs: [{ key: makeKey(ts1) }, { key: makeKey(ts2) }],
-    });
+    mockListByPrefix([{ key: makeKey(ts1) }, { key: makeKey(ts2) }]);
     mockStore.get.mockResolvedValueOnce(null).mockResolvedValueOnce(undefined);
     const events = await getRecentEvents();
     expect(events).toEqual([]);
