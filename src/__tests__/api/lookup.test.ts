@@ -13,9 +13,6 @@ vi.mock("iron-session", () => ({
 vi.mock("next/headers", () => ({
   cookies: vi.fn().mockReturnValue({ get: vi.fn(), set: vi.fn() }),
 }));
-vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 199, retryAfterSec: 0 }),
-}));
 vi.mock("@/lib/vbi-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/vbi-api")>();
   return {
@@ -42,7 +39,6 @@ vi.mock("@/lib/event-store", () => ({
 }));
 
 import { POST } from "@/app/api/insurance/lookup/route";
-import { checkRateLimit } from "@/lib/rate-limit";
 import { vbiApiLookup } from "@/lib/vbi-api";
 import { appendEvent } from "@/lib/event-store";
 
@@ -58,7 +54,6 @@ describe("POST /api/insurance/lookup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSession.user = { email: "user@vbi.com.vn", loginAt: Date.now() };
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 199, retryAfterSec: 0 });
   });
 
   // --- Auth ---
@@ -66,13 +61,6 @@ describe("POST /api/insurance/lookup", () => {
     mockSession.user = undefined;
     const res = await POST(makeRequest({ CERT_NO: "VBI-001" }));
     expect(res.status).toBe(401);
-    expect(res.headers.get("X-Request-ID")).toBeTruthy();
-  });
-
-  it("returns 429 when rate limit hit", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0, retryAfterSec: 500 });
-    const res = await POST(makeRequest({ CERT_NO: "VBI-001" }));
-    expect(res.status).toBe(429);
     expect(res.headers.get("X-Request-ID")).toBeTruthy();
   });
 

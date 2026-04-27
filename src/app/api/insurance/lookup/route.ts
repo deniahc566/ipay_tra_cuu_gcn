@@ -5,7 +5,6 @@ import crypto from "crypto";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { vbiApiLookup, type VbiLookupInput, PHONE_RE, IDCARD_RE, CERT_NO_RE, ACCOUNT_NO_RE } from "@/lib/vbi-api";
 import { appendEvent } from "@/lib/event-store";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 function hashField(value: string): string {
   if (!value) return "";
@@ -20,14 +19,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Chưa đăng nhập." },
       { status: 401, headers: { "X-Request-ID": requestId } }
-    );
-  }
-
-  const { allowed } = await checkRateLimit(`lookup:${session.user.email}`, 1000, 60 * 60 * 1000, true);
-  if (!allowed) {
-    return NextResponse.json(
-      { success: false, error: "Vượt quá giới hạn tra cứu. Vui lòng thử lại sau." },
-      { status: 429, headers: { "X-Request-ID": requestId } }
     );
   }
 
