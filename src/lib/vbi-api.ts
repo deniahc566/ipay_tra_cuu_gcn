@@ -75,20 +75,20 @@ export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> 
   }
 
   return raw.map((r) => {
-    if (!r["Tên Khách hàng"] && !r["CERT_NO"]) {
+    if (!r["NAME"] && !r["CERT_NO"]) {
       console.warn("[vbi-api] Record missing expected fields:", Object.keys(r));
     }
     return {
       CERT_NO: r["CERT_NO"] ?? "",
-      GCN: r["GCN"] ?? "",
-      TEN_KH: r["Tên Khách hàng"] ?? "",
+      GCN: r["CERTIFICATE"] ?? "",
+      TEN_KH: r["NAME"] ?? "",
       PROD_CODE: r["PROD_CODE"] ?? "",
       CAT_CODE: r["CAT_CODE"] ?? "",
       BOOKING_CODE: r["BOOKING_CODE"] ?? "",
       ORG_SALES: r["ORG_SALES"] ?? "",
-      EFF_DATE: r["Ngày hiệu lực"] ?? "",
-      CANCEL_DATE: r["Ngày hủy đơn"] ?? "",
-      CANCEL_REASON: r["Lý do hủy"] ?? "",
+      EFF_DATE: r["EFF_DATE"] ?? "",
+      CANCEL_DATE: r["CANCEL_DATE"] ?? "",
+      CANCEL_REASON: r["REASON_CANCEL"] ?? "",
       STATUS: r["STATUS"] ?? "",
     };
   });
