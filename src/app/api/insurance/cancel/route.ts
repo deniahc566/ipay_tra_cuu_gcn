@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     PROCESS_CODE: "ED8FD02A-B5E4-41D6-A873-092193FC4F23",
     REQUEST: {
       ORG_SALES: ORG_SALES ?? "VIETINBANK",
-      CAT_CODE: CAT_CODE ?? "",
+      CAT_CODE: CAT_CODE || "MIX",
       PROD_CODE: PROD_CODE ?? "",
       BOOKING_CODE: BOOKING_CODE ?? "",
       SALES_CHANNEL: "PARTNER",
