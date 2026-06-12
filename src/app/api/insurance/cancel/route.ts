@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       });
       console.error(`[cancel] requestId=${requestId} VBI business error:`, JSON.stringify(json));
       return NextResponse.json(
-        { success: false, error: `Lỗi từ VBI. Mã lỗi: ${requestId}` },
+        { success: false, error: errorMsg, rawResponse: JSON.stringify(json) },
         { status: 502 }
       );
     }
