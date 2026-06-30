@@ -80,7 +80,7 @@ export async function vbiApiLookup(input: VbiLookupInput): Promise<VbiRecord[]> 
     }
     return {
       CERT_NO: r["CERT_NO"] ?? "",
-      GCN: r["CERTIFICATE"] ?? "",
+      GCN: r["LINK_CERTIFICATE"] ?? "",
       TEN_KH: r["NAME"] ?? "",
       PROD_CODE: r["PROD_CODE"] ?? "",
       CAT_CODE: r["CAT_CODE"] ?? "",
